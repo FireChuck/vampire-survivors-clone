@@ -1,263 +1,431 @@
-// GameScene.js — Main gameplay: player, enemies, weapons, upgrades, HUD
+// GameScene.js — Main gameplay scene
+// Uses Player, Enemy, Weapon, XPOrb classes directly
 
 class GameScene extends Phaser.Scene {
-    constructor() {
-        super({ key: 'GameScene' });
+  constructor() {
+    super({ key: 'GameScene' });
+  }
+
+  create() {
+    // Physics groups
+    this.enemyGroup = this.physics.add.group({ runChildUpdate: false });
+    this.projectileGroup = this.physics.add.group({ runChildUpdate: false });
+    this.xpOrbGroup = this.physics.add.group({ runChildUpdate: false });
+
+    // Input
+    this.inputManager = new InputManager(this);
+
+    // Player (uses Player class directly)
+    this.player = new Player(this, 400, 300);
+
+    // Camera follow player
+    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+    this.cameras.main.setZoom(1.0);
+
+    // World bounds
+    this.physics.world.setBounds(-GAME_CONFIG.worldWidth / 2, -GAME_CONFIG.worldHeight / 2,
+      GAME_CONFIG.worldWidth, GAME_CONFIG.worldHeight);
+    this.player.body.setCollideWorldBounds(true);
+
+    // Systems
+    this.hud = new HUD(this);
+    this.upgradeSystem = new UpgradeSystem(this, this.player, this.hud);
+
+    // Weapon system — tracks weapons and auto-attack timers
+    this._weapons = [];
+    this._weaponTimers = {};
+    this._activeProjectiles = [];
+    this._auraWeapons = [];
+
+    // Give starter weapon: Magic Staff
+    this._addWeapon('staff');
+
+    // State
+    this.score = 0;
+    this.killCount = 0;
+    this.enemies = [];
+    this.xpOrbs = [];
+    this.gameTime = 0;
+    this.gameOverTriggered = false;
+    this.spawnTimer = 0;
+
+    // Spawn intervals
+    this.spawnInterval = GAME_CONFIG.spawnIntervalStart;
+    this._lastSpawnTime = 0;
+
+    // HUD init
+    this.hud.updateHP(this.player.hp, this.player.maxHp);
+    this.hud.startTimer();
+
+    // ── Collisions ──
+
+    // Player ↔ Enemy (overlap, handles damage via cooldown)
+    this.physics.add.overlap(this.player, this.enemyGroup, (player, enemy) => {
+      this._onPlayerHitEnemy(enemy);
+    });
+
+    // Projectile ↔ Enemy
+    this.physics.add.overlap(this.projectileGroup, this.enemyGroup, (proj, enemy) => {
+      this._onProjectileHit(proj, enemy);
+    });
+
+    // Player ↔ XP Orb
+    this.physics.add.overlap(this.player, this.xpOrbGroup, (player, orb) => {
+      this._onPlayerCollectXP(orb);
+    });
+
+    // Listen for enemy death events (XP orb spawn + score)
+    this.events.on('enemyKilled', (data) => {
+      this._spawnXPOrb(data.x, data.y, data.xpValue);
+      this.score += data.xpValue * 10;
+    });
+
+    // Listen for AOE events
+    this.events.on('weaponAOE', (data) => {
+      this._applyAOE(data);
+    });
+
+    // Listen for player level-up
+    this.events.on('playerLevelUp', () => {
+      this.upgradeSystem.addXP(0); // trigger XP check for display
+      if (this.hud) {
+        this.hud.updateHP(this.player.hp, this.player.maxHp);
+      }
+    });
+
+    // Draw ground grid
+    this._drawGround();
+
+    // Start spawning
+    this.spawnTimer = this.time.now;
+  }
+
+  _drawGround() {
+    const g = this.add.graphics();
+    g.lineStyle(1, 0x222244, 0.3);
+    const hw = GAME_CONFIG.worldWidth / 2;
+    const hh = GAME_CONFIG.worldHeight / 2;
+    const ts = GAME_CONFIG.tileSize;
+    for (let x = -hw; x <= hw; x += ts) {
+      g.lineBetween(x, -hh, x, hh);
+    }
+    for (let y = -hh; y <= hh; y += ts) {
+      g.lineBetween(-hw, y, hw, y);
+    }
+    g.setDepth(0);
+  }
+
+  // ── Weapons ──
+
+  _addWeapon(weaponKey) {
+    const type = WEAPON_TYPES[weaponKey];
+    if (!type) return;
+
+    if (type.aura) {
+      // Aura: create persistent entity around player
+      const aura = new Weapon(this, this.player.x, this.player.y, weaponKey, { x: 0, y: 0 }, type);
+      this._auraWeapons.push(aura);
+      this._weapons.push({ key: weaponKey, type: type, timer: 0 });
+    } else {
+      this._weapons.push({ key: weaponKey, type: type, timer: 0 });
+    }
+  }
+
+  _updateWeapons(time, delta) {
+    for (const w of this._weapons) {
+      w.timer += delta;
+
+      // Apply cooldown reduction
+      const cooldown = w.type.cooldown * (1 - this.player.stats.cooldownReduction);
+
+      if (cooldown <= 0) continue; // aura handled separately
+
+      if (w.timer >= cooldown) {
+        w.timer = 0;
+        this._fireWeapon(w.key, w.type);
+      }
+    }
+  }
+
+  _fireWeapon(weaponKey, type) {
+    const target = this._findNearestEnemy(type.range * 1.5);
+    if (!target && !type.aura) return;
+
+    const px = this.player.x;
+    const py = this.player.y;
+
+    if (type.aura) return; // handled separately
+
+    let direction;
+    if (target) {
+      const dx = target.x - px;
+      const dy = target.y - py;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      direction = { x: dx / dist, y: dy / dist };
+    } else {
+      // Fire in player facing direction (last movement)
+      direction = { x: 1, y: 0 };
     }
 
-    create() {
-        // Groups for collision
-        this.enemyGroup = this.physics.add.group();
-        this.projectileGroup = this.physics.add.group();
-        this.xpOrbGroup = this.physics.add.group();
+    // Apply player damage multiplier
+    const stats = {
+      damage: type.damage * this.player.stats.damageMultiplier,
+      speed: type.speed,
+      piercing: type.piercing,
+      range: type.range,
+      aoe: type.aoe,
+      melee: type.melee,
+      aura: type.aura
+    };
 
-        // Input
-        this.inputManager = new InputManager(this);
+    const proj = new Weapon(this, px, py, weaponKey, direction, stats);
+    this.projectileGroup.add(proj);
+    this._activeProjectiles.push(proj);
+  }
 
-        // Player — check if Player class exists, else use fallback
-        if (typeof Player !== 'undefined') {
-            this.player = new Player(this, 400, 300);
-        } else {
-            // Fallback player (in case Clawd 2's file isn't loaded yet)
-            this._createFallbackPlayer();
-        }
+  _findNearestEnemy(maxRange) {
+    if (!this.enemies.length) return null;
 
-        // Systems
-        this.weaponSystem = new WeaponSystem(this, this.player);
-        this.hud = new HUD(this);
-        this.upgradeSystem = new UpgradeSystem(this, this.player, this.hud);
+    const px = this.player.x;
+    const py = this.player.y;
+    let nearest = null;
+    let minDist = maxRange * maxRange;
 
-        // State
-        this.score = 0;
-        this.killCount = 0;
-        this.enemies = [];
-        this.spawnTimer = 0;
-        this.spawnInterval = 2000; // ms, decreases over time
-        this.gameTime = 0;
-        this.gameOverTriggered = false;
-
-        // HUD
-        this.hud.updateHP(this.player.hp, this.player.stats.maxHp);
-        this.hud.updateXP(this.player.xp, this.upgradeSystem.xpToNext, this.player.level);
-        this.hud.startTimer();
-
-        // Collisions
-        this.physics.add.overlap(this.player.sprite, this.enemyGroup, (player, enemySprite) => {
-            this._onPlayerHitEnemy(enemySprite);
-        });
-
-        this.physics.add.overlap(this.projectileGroup, this.enemyGroup, (proj, enemySprite) => {
-            this._onProjectileHit(proj, enemySprite);
-        });
-
-        this.physics.add.overlap(this.player.sprite, this.xpOrbGroup, (player, orbSprite) => {
-            this._onPlayerCollectXP(orbSprite);
-        });
-
-        // Start enemy spawning
-        this.spawnTimer = this.time.now;
+    for (const enemy of this.enemies) {
+      if (!enemy || !enemy.active) continue;
+      const dx = enemy.x - px;
+      const dy = enemy.y - py;
+      const dist = dx * dx + dy * dy;
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = enemy;
+      }
     }
 
-    _createFallbackPlayer() {
-        const sprite = this.add.circle(400, 300, 14, 0x4ecdc4);
-        this.physics.add.existing(sprite);
-        this.player = {
-            sprite: sprite,
-            hp: 100,
-            maxHp: 100,
-            xp: 0,
-            level: 1,
-            stats: {
-                speed: 160,
-                maxHp: 100,
-                damageMultiplier: 1,
-                armor: 0,
-                hpRegen: 0,
-                xpMultiplier: 1,
-                cooldownReduction: 0
-            }
-        };
+    return nearest;
+  }
+
+  _applyAOE(data) {
+    for (const enemy of this.enemies) {
+      if (!enemy || !enemy.active) continue;
+      if (enemy === data.exclude) continue;
+      const dx = enemy.x - data.x;
+      const dy = enemy.y - data.y;
+      if (dx * dx + dy * dy < data.range * data.range) {
+        enemy.takeDamage(data.damage);
+      }
+    }
+  }
+
+  // ── Enemy Spawning ──
+
+  _spawnEnemy() {
+    if (this.enemies.length >= GAME_CONFIG.maxEnemies) return;
+
+    // Pick available types based on game time
+    const typeKeys = Object.keys(ENEMY_TYPES).filter(k =>
+      this.gameTime >= (ENEMY_TYPES[k].minTime || 0)
+    );
+
+    if (!typeKeys.length) return;
+
+    const typeKey = typeKeys[Math.floor(Math.random() * typeKeys.length)];
+
+    // Spawn outside camera view, around player
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 500 + Math.random() * 100;
+    const x = this.player.x + Math.cos(angle) * dist;
+    const y = this.player.y + Math.sin(angle) * dist;
+
+    // Scale HP with game time
+    const hpScale = 1 + this.gameTime / 60000;
+    const type = ENEMY_TYPES[typeKey];
+
+    const enemy = new Enemy(this, x, y, typeKey);
+    enemy.hp = Math.floor(enemy.hp * hpScale);
+    enemy.maxHp = enemy.hp;
+
+    this.enemyGroup.add(enemy);
+    this.enemies.push(enemy);
+  }
+
+  // ── Collision Handlers ──
+
+  _onPlayerHitEnemy(enemy) {
+    if (!enemy || !enemy.active) return;
+    if (!enemy.canDamagePlayer()) return;
+    if (this.upgradeSystem.paused) return; // No damage during level-up
+
+    const damage = enemy.damage;
+    const actual = this.player.takeDamage(damage);
+
+    enemy.startDamageCooldown();
+
+    if (this.hud) {
+      this.hud.updateHP(this.player.hp, this.player.maxHp);
     }
 
-    update(time, delta) {
-        if (this.upgradeSystem.paused || this.gameOverTriggered) return;
+    // Golem area damage
+    if (enemy.enemyTypeKey === 'golem') {
+      // Extra damage pulse handled by golem's stop behavior
+    }
 
-        this.gameTime += delta;
+    if (this.player.hp <= 0 && !this.gameOverTriggered) {
+      this._triggerGameOver();
+    }
+  }
 
-        // Player movement
-        const move = this.inputManager.getMovementVector();
-        if (this.player.sprite.body) {
-            this.player.sprite.body.setVelocity(
-                move.x * this.player.stats.speed,
-                move.y * this.player.stats.speed
-            );
-        }
+  _onProjectileHit(proj, enemy) {
+    if (!proj || !proj.active) return;
+    if (!enemy || !enemy.active) return;
 
-        // Clamp player to world bounds
-        this.player.sprite.x = Phaser.Math.Clamp(this.player.sprite.x, 16, this.scale.width - 16);
-        this.player.sprite.y = Phaser.Math.Clamp(this.player.sprite.y, 16, this.scale.height - 16);
+    // Only Weapon class projectiles handle hits
+    if (typeof proj.onHitEnemy === 'function') {
+      proj.onHitEnemy(enemy);
+    }
+  }
 
-        // HP regen
-        if (this.player.stats.hpRegen > 0) {
-            this.player.hp = Math.min(this.player.hp + this.player.stats.hpRegen * delta / 1000, this.player.stats.maxHp);
-            this.hud.updateHP(this.player.hp, this.player.stats.maxHp);
-        }
+  _spawnXPOrb(x, y, value) {
+    const orb = new XPOrb(this, x, y, value);
+    this.xpOrbGroup.add(orb);
+    this.xpOrbs.push(orb);
+  }
 
-        // Weapon system
-        this.weaponSystem.enemies = this.enemies;
-        this.weaponSystem.update(time, delta);
+  _onPlayerCollectXP(orb) {
+    if (!orb || !orb.active) return;
 
-        // Enemy spawning — difficulty increases over time
-        this.spawnInterval = Math.max(300, 2000 - this.gameTime / 100);
-        if (time - this.spawnTimer > this.spawnInterval) {
-            this.spawnTimer = time;
-            this._spawnEnemy();
-        }
+    orb.collect(this.player);
 
-        // Move enemies toward player
+    // Remove from tracking
+    const idx = this.xpOrbs.indexOf(orb);
+    if (idx !== -1) this.xpOrbs.splice(idx, 1);
+
+    // Update XP via upgrade system
+    this.upgradeSystem.addXP(0); // XP already added in orb.collect()
+
+    if (this.hud) {
+      this.hud.updateXP(this.player.xp, this.upgradeSystem.xpToNext, this.player.level);
+    }
+  }
+
+  _triggerGameOver() {
+    if (this.gameOverTriggered) return;
+    this.gameOverTriggered = true;
+
+    // Stop all systems
+    this.inputManager.destroy();
+    this.upgradeSystem.destroy();
+    this.hud.destroy();
+
+    const stats = {
+      score: this.score,
+      killCount: this.killCount,
+      level: this.player.level,
+      time: this.hud ? this.hud.getElapsedTime() : 0
+    };
+
+    this.time.delayedCall(600, () => {
+      this.scene.stop('GameScene');
+      this.scene.start('GameOverScene', stats);
+    });
+  }
+
+  // ── Main Update Loop ──
+
+  update(time, delta) {
+    if (this.upgradeSystem.paused || this.gameOverTriggered) return;
+
+    this.gameTime += delta;
+
+    // Player movement
+    const move = this.inputManager.getMovementVector();
+    this.player.move(move.x, move.y);
+
+    // HP regen HUD update
+    if (this.player.stats.hpRegen > 0 && this.hud) {
+      this.hud.updateHP(this.player.hp, this.player.maxHp);
+    }
+
+    // XP bar
+    if (this.hud) {
+      this.hud.updateXP(this.player.xp, this.upgradeSystem.xpToNext, this.player.level);
+    }
+
+    // Weapons
+    this._updateWeapons(time, delta);
+
+    // Update active projectiles
+    for (let i = this._activeProjectiles.length - 1; i >= 0; i--) {
+      const p = this._activeProjectiles[i];
+      if (!p || !p.active) {
+        this._activeProjectiles.splice(i, 1);
+      } else {
+        p.update(time, delta);
+      }
+    }
+
+    // Update aura weapons
+    for (const aura of this._auraWeapons) {
+      if (aura.active) {
+        // Aura damage: check enemies in range every frame
         for (const enemy of this.enemies) {
-            if (!enemy.sprite || !enemy.sprite.active) continue;
-            this._moveEnemyTowardPlayer(enemy);
+          if (!enemy || !enemy.active) continue;
+          const dx = enemy.x - this.player.x;
+          const dy = enemy.y - this.player.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < aura.range) {
+            // Aura ticks: damage every 500ms
+            if (!enemy._auraTickTime) enemy._auraTickTime = 0;
+            enemy._auraTickTime += delta;
+            if (enemy._auraTickTime >= 500) {
+              enemy._auraTickTime = 0;
+              const dmg = aura.damage * this.player.stats.damageMultiplier;
+              enemy.takeDamage(dmg);
+            }
+          }
         }
-
-        // Score
-        this.hud.updateScore(this.score);
+        aura.update(time, delta);
+      }
     }
 
-    _spawnEnemy() {
-        // Use Clawd 2's ENEMY_TYPES or fallback
-        let types;
-        if (typeof ENEMY_TYPES !== 'undefined') {
-            types = Object.values(ENEMY_TYPES);
-        } else {
-            types = [{ name: 'Zombie', hp: 20, speed: 60, damage: 8, xp: 5, color: 0x2ecc71, size: 12 }];
-        }
+    // Enemy spawning — difficulty increases
+    this.spawnInterval = Math.max(GAME_CONFIG.spawnIntervalMin,
+      GAME_CONFIG.spawnIntervalStart - (this.gameTime / 1000 / 60) * GAME_CONFIG.spawnIntervalDecrease);
 
-        // Pick type based on game time
-        const available = types.filter(e => e.minTime === undefined || this.gameTime >= e.minTime);
-        const template = available[Math.floor(Math.random() * available.length)];
-
-        // Spawn outside screen edges
-        const side = Math.floor(Math.random() * 4);
-        let x, y;
-        if (side === 0) { x = -20; y = Math.random() * 600; }
-        else if (side === 1) { x = 820; y = Math.random() * 600; }
-        else if (side === 2) { x = Math.random() * 800; y = -20; }
-        else { x = Math.random() * 800; y = 620; }
-
-        // Scale HP with game time
-        const hpScale = 1 + this.gameTime / 60000;
-        const hp = Math.floor(template.hp * hpScale);
-
-        let enemy;
-        if (typeof Enemy !== 'undefined') {
-            enemy = new Enemy(this, x, y, template, hp);
-        } else {
-            // Fallback enemy
-            const sprite = this.add.circle(x, y, template.size || 12, template.color || 0x2ecc71);
-            this.physics.add.existing(sprite);
-            this.enemyGroup.add(sprite);
-            enemy = {
-                sprite: sprite,
-                hp: hp,
-                maxHp: hp,
-                damage: template.damage || 8,
-                xp: template.xp || 5,
-                speed: template.speed || 60,
-                name: template.name || 'Enemy',
-                takeDamage: function (dmg) {
-                    this.hp -= dmg;
-                }
-            };
-        }
-
-        this.enemyGroup.add(enemy.sprite);
-        this.enemies.push(enemy);
+    if (this.gameTime - this._lastSpawnTime > this.spawnInterval) {
+      this._lastSpawnTime = this.gameTime;
+      this._spawnEnemy();
+      // Spawn extra enemies as time goes on
+      if (this.gameTime > 60000) this._spawnEnemy();
+      if (this.gameTime > 120000) this._spawnEnemy();
+      if (this.gameTime > 180000) this._spawnEnemy();
     }
 
-    _moveEnemyTowardPlayer(enemy) {
-        const dx = this.player.sprite.x - enemy.sprite.x;
-        const dy = this.player.sprite.y - enemy.sprite.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist > 0 && enemy.sprite.body) {
-            const speed = enemy.speed || 60;
-            enemy.sprite.body.setVelocity(
-                (dx / dist) * speed,
-                (dy / dist) * speed
-            );
-        }
+    // Update enemies
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      const enemy = this.enemies[i];
+      if (!enemy || !enemy.active) {
+        this.enemies.splice(i, 1);
+      } else {
+        enemy.update(time, delta, this.player);
+      }
     }
 
-    _onPlayerHitEnemy(enemySprite) {
-        // Damage cooldown — simple approach
-        if (this.player._hitCooldown && this.time.now < this.player._hitCooldown) return;
-        this.player._hitCooldown = this.time.now + 500;
-
-        const damage = 10; // fallback damage
-        const reduced = Math.max(1, damage - (this.player.stats.armor || 0));
-        this.player.hp -= reduced;
-        this.hud.updateHP(this.player.hp, this.player.stats.maxHp);
-
-        if (this.player.hp <= 0) {
-            this._triggerGameOver();
-        }
+    // Update XP orbs — attraction to player
+    for (let i = this.xpOrbs.length - 1; i >= 0; i--) {
+      const orb = this.xpOrbs[i];
+      if (!orb || !orb.active) {
+        this.xpOrbs.splice(i, 1);
+      } else {
+        orb.attractTo(this.player);
+      }
     }
 
-    _onProjectileHit(proj, enemySprite) {
-        // Find enemy object
-        const enemy = this.enemies.find(e => e.sprite === enemySprite);
-        if (!enemy) return;
-
-        this.weaponSystem.onProjectileHitEnemy(proj, enemy);
-
-        if (enemy.hp <= 0) {
-            this._killEnemy(enemy);
-        }
+    // HUD updates
+    if (this.hud) {
+      this.hud.updateScore(this.score);
+      this.hud.updateKills(this.killCount);
+      this.hud.updateEnemyCount(this.enemies.length);
     }
-
-    _killEnemy(enemy) {
-        // Drop XP orb
-        this._spawnXPOrb(enemy.sprite.x, enemy.sprite.y, enemy.xp || 5);
-
-        // Remove enemy
-        enemy.sprite.destroy();
-        const idx = this.enemies.indexOf(enemy);
-        if (idx !== -1) this.enemies.splice(idx, 1);
-
-        this.killCount++;
-        this.score += (enemy.xp || 5) * 10;
-    }
-
-    _spawnXPOrb(x, y, value) {
-        const orb = this.add.circle(x, y, 6, 0x9b59b6);
-        this.physics.add.existing(orb);
-        this.xpOrbGroup.add(orb);
-        orb._xpValue = value * (this.player.stats.xpMultiplier || 1);
-    }
-
-    _onPlayerCollectXP(orbSprite) {
-        const value = orbSprite._xpValue || 5;
-        this.upgradeSystem.addXP(value);
-        orbSprite.destroy();
-    }
-
-    _triggerGameOver() {
-        if (this.gameOverTriggered) return;
-        this.gameOverTriggered = true;
-
-        const stats = {
-            score: this.score,
-            killCount: this.killCount,
-            level: this.player.level,
-            time: this.hud.getElapsedTime()
-        };
-
-        this.inputManager.destroy();
-        this.weaponSystem.destroy();
-        this.upgradeSystem.destroy();
-        this.hud.destroy();
-
-        this.scene.start('GameOverScene', stats);
-    }
+  }
 }

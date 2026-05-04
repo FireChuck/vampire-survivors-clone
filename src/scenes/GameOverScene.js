@@ -10,6 +10,7 @@ class GameOverScene extends Phaser.Scene {
     }
 
     create() {
+        this.cameras.main.setBackgroundColor('#1a1a2e');
         const cx = this.scale.width / 2;
         const cy = this.scale.height / 2;
 

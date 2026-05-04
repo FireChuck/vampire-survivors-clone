@@ -37,10 +37,10 @@ class WeaponSystem {
         const target = this._findNearestEnemy();
         if (!target) return;
 
-        const px = this.player.sprite.x;
-        const py = this.player.sprite.y;
-        const ex = target.sprite.x;
-        const ey = target.sprite.y;
+        const px = this.player.x;
+        const py = this.player.y;
+        const ex = (target.sprite || target).x;
+        const ey = (target.sprite || target).y;
 
         const angle = Math.atan2(ey - py, ex - px);
 
@@ -56,7 +56,7 @@ class WeaponSystem {
         p._weapon = weapon;
         p._piercing = weapon.piercing || 0;
         p._hits = 0;
-        p._damage = weapon.damage * (this.player.stats.damageMultiplier || 1);
+        p._damage = weapon.damage * (this.player.damageMultiplier || this.player.stats?.damageMultiplier || 1);
 
         this.projectiles.push(p);
     }
@@ -70,9 +70,11 @@ class WeaponSystem {
         let minDist = Infinity;
 
         for (const enemy of this.enemies) {
-            if (!enemy.sprite || !enemy.sprite.active) continue;
-            const dx = enemy.sprite.x - px;
-            const dy = enemy.sprite.y - py;
+            if (!enemy || !enemy.active) continue;
+            const sprite = enemy.sprite || enemy;
+            if (!sprite.active) continue;
+            const dx = sprite.x - px;
+            const dy = sprite.y - py;
             const dist = dx * dx + dy * dy;
             if (dist < minDist) {
                 minDist = dist;

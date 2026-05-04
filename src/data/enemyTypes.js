@@ -1,5 +1,5 @@
 // enemyTypes.js — Vampire Survivors Clone
-// Global enemy type definitions
+// 8 enemy types with distinct behaviors and progressive unlock times
 
 const ENEMY_TYPES = {
   bat: {
@@ -9,7 +9,8 @@ const ENEMY_TYPES = {
     speed: 120,
     damage: 8,
     xpValue: 5,
-    size: [16, 16]
+    size: [16, 16],
+    minTime: 0
   },
   skeleton: {
     name: 'Skeleton',
@@ -18,7 +19,8 @@ const ENEMY_TYPES = {
     speed: 80,
     damage: 12,
     xpValue: 10,
-    size: [20, 24]
+    size: [20, 24],
+    minTime: 0
   },
   zombie: {
     name: 'Zombie',
@@ -27,16 +29,8 @@ const ENEMY_TYPES = {
     speed: 50,
     damage: 15,
     xpValue: 15,
-    size: [22, 22]
-  },
-  ghost: {
-    name: 'Ghost',
-    color: 0xaaddff,
-    hp: 20,
-    speed: 100,
-    damage: 10,
-    xpValue: 12,
-    size: [18, 18]
+    size: [22, 22],
+    minTime: 0
   },
   slime: {
     name: 'Slime',
@@ -45,16 +39,8 @@ const ENEMY_TYPES = {
     speed: 60,
     damage: 5,
     xpValue: 8,
-    size: [20, 20]
-  },
-  demon: {
-    name: 'Demon',
-    color: 0xcc2222,
-    hp: 80,
-    speed: 90,
-    damage: 20,
-    xpValue: 25,
-    size: [26, 26]
+    size: [20, 20],
+    minTime: 30000
   },
   spider: {
     name: 'Spider',
@@ -63,7 +49,28 @@ const ENEMY_TYPES = {
     speed: 150,
     damage: 6,
     xpValue: 4,
-    size: [14, 14]
+    size: [14, 14],
+    minTime: 60000
+  },
+  ghost: {
+    name: 'Ghost',
+    color: 0xaaddff,
+    hp: 20,
+    speed: 100,
+    damage: 10,
+    xpValue: 12,
+    size: [18, 18],
+    minTime: 120000
+  },
+  demon: {
+    name: 'Demon',
+    color: 0xcc2222,
+    hp: 80,
+    speed: 90,
+    damage: 20,
+    xpValue: 25,
+    size: [26, 26],
+    minTime: 180000
   },
   golem: {
     name: 'Golem',
@@ -72,6 +79,7 @@ const ENEMY_TYPES = {
     speed: 30,
     damage: 25,
     xpValue: 30,
-    size: [32, 32]
+    size: [32, 32],
+    minTime: 300000
   }
 };

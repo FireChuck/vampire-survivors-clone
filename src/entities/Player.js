@@ -11,25 +11,37 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.body.setCircle(14, 0, 0);
     this.body.setCollideWorldBounds(true);
 
-    // Stats
+    // Core stats
     this.hp = 100;
     this.maxHp = 100;
     this.speed = 200;
     this.xp = 0;
     this.level = 1;
-    this.pickupRange = 50;
+    this.pickupRange = 60;
     this.damage = 10;
     this.attackSpeed = 1.0;
 
-    // XP needed for next level: 10 * level^1.5
+    // Nested stats for UpgradeSystem compatibility
+    this.stats = {
+      speed: this.speed,
+      maxHp: this.maxHp,
+      damageMultiplier: 1,
+      armor: 0,
+      hpRegen: 0,
+      xpMultiplier: 1,
+      cooldownReduction: 0
+    };
+
+    // XP needed for next level
     this._getXpNeeded = () => Math.floor(10 * Math.pow(this.level, 1.5));
 
-    // Weapons array (populated by GameScene)
+    // Weapons array (populated by WeaponSystem)
     this.weapons = [];
 
     // Invincibility after taking damage
     this._invincible = false;
     this._invincibleTimer = null;
+    this._invincibleDuration = 800;
 
     // Visual: blue circle via Graphics
     this._graphics = scene.add.graphics();
@@ -38,15 +50,24 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   _drawVisual() {
     this._graphics.clear();
+    // Body
     this._graphics.fillStyle(0x4488ff, 1);
-    this._graphics.fillCircle(this.x, this.y, 14);
+    this._graphics.fillCircle(0, 0, 14);
+    // Highlight
     this._graphics.fillStyle(0x88bbff, 1);
-    this._graphics.fillCircle(this.x - 3, this.y - 3, 5);
+    this._graphics.fillCircle(-3, -3, 5);
+    // Invincibility ring
+    if (this._invincible) {
+      this._graphics.lineStyle(2, 0xffffff, 0.7);
+      this._graphics.strokeCircle(0, 0, 16);
+    }
     this._graphics.setDepth(10);
   }
 
   move(x, y) {
-    // Normalize diagonal movement
+    // Sync speed from stats
+    this.speed = this.stats.speed;
+
     const len = Math.sqrt(x * x + y * y);
     if (len > 0) {
       this.setVelocity(x / len * this.speed, y / len * this.speed);
@@ -58,7 +79,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   takeDamage(amount) {
     if (this._invincible) return;
 
-    this.hp = Math.max(0, this.hp - amount);
+    // Apply armor
+    const reduced = Math.max(1, amount - this.stats.armor);
+    this.hp = Math.max(0, this.hp - reduced);
 
     // Flash effect
     this.setTintFill(0xff0000);
@@ -66,28 +89,70 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       if (this.active) this.clearTint();
     });
 
-    // Invincibility frames (500ms)
+    // Screen shake
+    if (this.scene.cameras && this.scene.cameras.main) {
+      this.scene.cameras.main.shake(200, 0.01);
+    }
+
+    // Invincibility frames
     this._invincible = true;
     if (this._invincibleTimer) this._invincibleTimer.remove();
-    this._invincibleTimer = this.scene.time.delayedCall(500, () => {
+    this._invincibleTimer = this.scene.time.delayedCall(this._invincibleDuration, () => {
       this._invincible = false;
+      if (this.active) this._drawVisual();
     });
 
     if (this.hp <= 0) {
       this.die();
     }
+
+    return reduced;
   }
 
   die() {
     this.setTint(0xff0000);
     this.body.enable = false;
+
+    // Death particles
+    this._spawnDeathParticles();
+
+    // Let GameScene handle the GameOver transition (proper cleanup)
     this.scene.time.delayedCall(500, () => {
-      this.scene.scene.start('GameOverScene', {
-        time: this.scene.hud ? this.scene.hud.elapsedTime : 0,
-        level: this.level,
-        kills: this.scene.killCount || 0
-      });
+      if (this.scene._triggerGameOver) {
+        this.scene._triggerGameOver();
+      }
     });
+  }
+
+  _spawnDeathParticles() {
+    const particles = this.scene.add.graphics();
+    const pList = [];
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 / 12) * i;
+      pList.push({
+        x: this.x, y: this.y,
+        vx: Math.cos(angle) * (100 + Math.random() * 80),
+        vy: Math.sin(angle) * (100 + Math.random() * 80),
+        alpha: 1
+      });
+    }
+    const elapsed = { t: 0 };
+    const event = this.scene.time.addEvent({
+      delay: 16, repeat: 30, callback: () => {
+        elapsed.t += 16;
+        particles.clear();
+        for (const p of pList) {
+          p.x += p.vx * 0.016;
+          p.y += p.vy * 0.016;
+          p.alpha -= 0.03;
+          if (p.alpha > 0) {
+            particles.fillStyle(0x4488ff, p.alpha);
+            particles.fillCircle(p.x, p.y, 4);
+          }
+        }
+      }
+    });
+    this.scene.time.delayedCall(600, () => { particles.destroy(); event.destroy(); });
   }
 
   heal(amount) {
@@ -95,20 +160,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   addXp(amount) {
-    this.xp += amount;
-    const needed = this._getXpNeeded();
-    if (this.xp >= needed) {
-      this.xp -= needed;
-      this.levelUp();
-    }
-  }
-
-  levelUp() {
-    this.level++;
-    // Heal 20% of maxHp on level up
-    this.hp = Math.min(this.hp + Math.floor(this.maxHp * 0.2), this.maxHp);
-    // Emit event for GameScene to handle upgrade selection
-    this.scene.events.emit('playerLevelUp', this);
+    this.xp += Math.floor(amount * this.stats.xpMultiplier);
   }
 
   getStats() {
@@ -128,8 +180,21 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   preUpdate(time, delta) {
     super.preUpdate(time, delta);
+
+    // HP regen
+    if (this.stats.hpRegen > 0 && this.hp < this.maxHp) {
+      this.hp = Math.min(this.hp + this.stats.hpRegen * delta / 1000, this.maxHp);
+    }
+
     // Update graphics position
     this._graphics.setPosition(this.x, this.y);
+
+    // Invincibility blink
+    if (this._invincible) {
+      this._graphics.setVisible(Math.floor(time / 80) % 2 === 0);
+    } else {
+      this._graphics.setVisible(true);
+    }
   }
 
   destroy() {

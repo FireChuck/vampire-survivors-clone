@@ -11,10 +11,12 @@
     </style>
 </head>
 <body>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js"></script>
+    <script src="lib/phaser.min.js"></script>
+    <!-- nipplejs optional for mobile -->
+    <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js" onerror="console.warn('nipplejs not loaded, mobile controls disabled')"></script>
 
     <!-- Data (Clawd 2) -->
+    <script src="src/data/gameConfig.js"></script>
     <script src="src/data/enemyTypes.js"></script>
     <script src="src/data/weaponTypes.js"></script>
     <script src="src/data/upgradeTypes.js"></script>
