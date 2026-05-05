@@ -185,7 +185,12 @@ class HUD {
   }
 
   updateKills(kills) {
-    this.killText.setText(`Kills: ${kills}`);
+    if (this.elapsedSeconds < 10) {
+      this.killText.setText(`\u{1F480} Kills: ${kills}`);
+    } else {
+      const kpm = (kills / (this.elapsedSeconds / 60)).toFixed(1);
+      this.killText.setText(`\u{1F480} Kills: ${kills} | ${kpm}/min`);
+    }
   }
 
   updateEnemyCount(count) {

@@ -123,5 +123,32 @@ const UPGRADE_TYPES = [
     apply: function(player) {
       player.stats.lifeSteal += 0.05;
     }
+  },
+  {
+    id: 'armor',
+    name: 'Armor',
+    description: '-15% incoming damage',
+    icon: '🛡️',
+    apply: function(player) {
+      player.stats.armor += 0.15;
+    }
+  },
+  {
+    id: 'critChance',
+    name: 'Critical Strike',
+    description: '+10% chance for 2× damage',
+    icon: '🎯',
+    apply: function(player) {
+      player.stats.critChance += 0.10;
+    }
+  },
+  {
+    id: 'xpBoost',
+    name: 'Wisdom',
+    description: '+20% XP from all sources',
+    icon: '📚',
+    apply: function(player) {
+      player.stats.xpMultiplier = (player.stats.xpMultiplier || 1) * 1.2;
+    }
   }
 ];

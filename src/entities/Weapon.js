@@ -179,8 +179,11 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
     this._hitEnemies.add(enemy);
     this._hitsRemaining--;
 
-    // Apply damage
-    const finalDamage = this.damage * (this.scene.player ? this.scene.player.stats.damageMultiplier : 1);
+    // Apply damage (with critical hit check)
+    const player = this.scene.player;
+    const baseDamage = this.damage * (player ? player.stats.damageMultiplier : 1);
+    const isCrit = player && Math.random() < (player.stats.critChance || 0);
+    const finalDamage = isCrit ? baseDamage * 2 : baseDamage;
     enemy.takeDamage(finalDamage);
 
     // Life steal: heal player for % of damage dealt

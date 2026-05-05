@@ -57,11 +57,13 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
   _drawVisual() {
     this._graphics.clear();
+    const color = this._charColor || 0x4488ff;
+    const highlight = this._charHighlight || 0x88bbff;
     // Body
-    this._graphics.fillStyle(0x4488ff, 1);
+    this._graphics.fillStyle(color, 1);
     this._graphics.fillCircle(0, 0, 14);
     // Highlight
-    this._graphics.fillStyle(0x88bbff, 1);
+    this._graphics.fillStyle(highlight, 1);
     this._graphics.fillCircle(-3, -3, 5);
     // Invincibility ring
     if (this._invincible) {
@@ -86,8 +88,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   takeDamage(amount) {
     if (this._invincible) return;
 
-    // Apply armor
-    const reduced = Math.max(1, amount - this.stats.armor);
+    // Apply armor (percentage-based: 0.15 = 15% reduction)
+    const armorMult = 1 - Math.min(this.stats.armor, 0.75); // cap at 75% reduction
+    const reduced = Math.max(1, Math.floor(amount * armorMult));
     this.hp = Math.max(0, this.hp - reduced);
 
     // Flash effect
@@ -134,6 +137,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
   _spawnDeathParticles() {
     const particles = this.scene.add.graphics();
     const pList = [];
+    const color = this._charColor || 0x4488ff;
     for (let i = 0; i < 12; i++) {
       const angle = (Math.PI * 2 / 12) * i;
       pList.push({
@@ -153,7 +157,7 @@ class Player extends Phaser.Physics.Arcade.Sprite {
           p.y += p.vy * 0.016;
           p.alpha -= 0.03;
           if (p.alpha > 0) {
-            particles.fillStyle(0x4488ff, p.alpha);
+            particles.fillStyle(color, p.alpha);
             particles.fillCircle(p.x, p.y, 4);
           }
         }

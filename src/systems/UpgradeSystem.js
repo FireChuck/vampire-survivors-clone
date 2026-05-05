@@ -12,7 +12,8 @@ class UpgradeSystem {
   }
 
   _calcXpRequired(level) {
-    return Math.floor(10 * Math.pow(level, 1.5));
+    const xc = GAME_CONFIG.xpCurve;
+    return Math.min(xc.capXP, Math.floor(xc.baseXP * Math.pow(xc.levelMultiplier, level)));
   }
 
   addXP(amount) {

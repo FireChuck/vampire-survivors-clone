@@ -47,4 +47,22 @@ const GAME_CONFIG = {
   maxParticles: 200,
   enemyDespawnDistance: 1200,  // remove enemies this far off-screen
   targetFPS: 60,
+
+  // ── Difficulty Scaling ──
+  enemyHpScale: {
+    baseMultiplier: 1.0,       // HP multiplier at game start
+    perMinuteIncrease: 0.08,   // +8% per minute
+    bossMultiplier: 3.0,       // bosses get 3× base HP
+    capMultiplier: 5.0,        // max HP scale (never exceed 5×)
+  },
+  xpCurve: {
+    baseXP: 10,                // XP needed for level 1→2
+    levelMultiplier: 1.25,     // ×1.25 per level
+    capXP: 500,                // max XP per level
+  },
+  spawnScale: {
+    baseInterval: 1000,        // ms between spawns at start
+    decreasePerMinute: 15,     // -15ms per minute
+    minInterval: 300,          // minimum spawn interval
+  },
 };
