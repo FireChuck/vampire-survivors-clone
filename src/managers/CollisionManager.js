@@ -21,7 +21,12 @@ class CollisionManager {
     });
 
     scene.physics.add.overlap(scene.player, scene.chestGroup, (player, chest) => {
-      if (chest.active && !chest._opened) chest.open(player);
+      if (chest.active && !chest._opened) {
+        chest.open(player);
+        // T4.1: Track items collected
+        if (!scene._itemsCollected) scene._itemsCollected = 0;
+        scene._itemsCollected++;
+      }
     });
   }
 
@@ -106,6 +111,11 @@ class CollisionManager {
       scene.damageNumbers.show(enemy.x, enemy.y - 10, proj.damage || 10, isCrit ? 'crit' : 'damage');
     }
 
+    // T4.1: Record damage for DPS tracking
+    if (typeof scene.recordDamage === 'function') {
+      scene.recordDamage(proj.damage || 0);
+    }
+
     if (typeof proj.onHitEnemy === 'function') {
       proj.onHitEnemy(enemy);
     }
@@ -138,42 +148,33 @@ class CollisionManager {
 
     if (scene.audioManager) scene.audioManager.playGameOver();
 
-    scene.inputManager.destroy();
-    scene.upgradeSystem.destroy();
-    if (scene.abilitySystem) scene.abilitySystem.destroy();
-    scene.hud.destroy();
-    if (scene.damageNumbers) scene.damageNumbers.destroy();
+    // T4.1: Slow-mo death effect before game over
+    scene._doSlowMoDeath(() => {
+      scene.inputManager.destroy();
+      scene.upgradeSystem.destroy();
+      if (scene.abilitySystem) scene.abilitySystem.destroy();
+      scene.hud.destroy();
+      if (scene.damageNumbers) scene.damageNumbers.destroy();
 
-    const stats = {
-      score: scene.score,
-      killCount: scene.killCount,
-      level: scene.player.level,
-      time: scene.hud ? scene.hud.getElapsedTime() : 0
-    };
+      const stats = {
+        score: scene.score,
+        killCount: scene.killCount,
+        level: scene.player.level,
+        time: scene.hud ? scene.hud.getElapsedTime() : 0,
+        itemsCollected: scene._itemsCollected || 0,
+        dps: scene.getDPS ? scene.getDPS() : 0,
+        totalDamageDealt: scene._totalDamageDealt || 0
+      };
 
-    const achievementsBefore = [...scene.meta.data.achievements];
-    const wasHighScore = scene.meta.isNewHighScore(stats.score);
-    scene.meta.recordRun(stats);
-    const achievementsAfter = scene.meta.data.achievements;
-    const newAchievements = achievementsAfter.filter(a => !achievementsBefore.includes(a));
+      const achievementsBefore = [...scene.meta.data.achievements];
+      const wasHighScore = scene.meta.isNewHighScore(stats.score);
+      scene.meta.recordRun(stats);
+      const achievementsAfter = scene.meta.data.achievements;
+      const newAchievements = achievementsAfter.filter(a => !achievementsBefore.includes(a));
 
-    stats.wasHighScore = wasHighScore || stats.score >= scene.meta.data.highScore;
-    stats.newAchievements = newAchievements;
+      stats.wasHighScore = wasHighScore || stats.score >= scene.meta.data.highScore;
+      stats.newAchievements = newAchievements;
 
-    // Show achievement toasts before game over
-    if (newAchievements.length > 0 && scene.achievementToast) {
-      const allInfo = scene.meta.getAchievementInfo();
-      newAchievements.forEach((id, i) => {
-        const info = allInfo.find(a => a.id === id);
-        if (info) {
-          scene.time.delayedCall(i * 500, () => {
-            scene.achievementToast.show('🏅', info.name, info.desc);
-          });
-        }
-      });
-    }
-
-    scene.time.delayedCall(1800, () => {
       scene.scene.stop('GameScene');
       scene.scene.start('GameOverScene', stats);
     });

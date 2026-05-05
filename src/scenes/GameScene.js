@@ -177,6 +177,14 @@ class GameScene extends Phaser.Scene {
     this.xpOrbs = [];
     this.gameOverTriggered = false;
 
+    // T4.1: DPS tracking
+    this._totalDamageDealt = 0;
+    this._dpsSamples = []; // { time, damage } pairs for rolling DPS calc
+    this._lastDpsCalc = 0;
+
+    // T4.1: Items collected tracking
+    this._itemsCollected = 0;
+
     // HUD init
     this.hud.updateHP(this.player.hp, this.player.maxHp);
     this.hud.startTimer();
@@ -246,7 +254,7 @@ class GameScene extends Phaser.Scene {
   // ── Main Update Loop ──
 
   update(time, delta) {
-    if (this.isPaused || this._startCountdownActive || this.upgradeSystem.paused || this.gameOverTriggered) return;
+    if (this.isPaused || this._startCountdownActive || this.upgradeSystem.paused || this.gameOverTriggered || this._slowMoActive) return;
 
     // Particle system
     this.particleSystem.update(delta);
@@ -371,9 +379,73 @@ class GameScene extends Phaser.Scene {
 
     if (this.minimap) this.minimap.update();
 
+    // T4.2: Auto-save every 30 seconds with toast
+    if (!this._lastAutoSave) this._lastAutoSave = 0;
+    if (time - this._lastAutoSave > 30000) {
+      this._lastAutoSave = time;
+      if (this.meta && this.hud) {
+        this.meta.saveWithFeedback({ toastCallback: (success, msg) => {
+          this.hud.showSaveIndicator(success);
+        }});
+      }
+    }
+
     // QoL updates
     this._updateBossHPBar();
     this._updatePickupRadius();
+  }
+
+  // ── T4.1: DPS Tracking ──
+
+  recordDamage(amount) {
+    this._totalDamageDealt += amount;
+    this._dpsSamples.push({ time: this.hud ? this.hud.getElapsedTime() : 0, damage: amount });
+  }
+
+  getDPS() {
+    const now = this.hud ? this.hud.getElapsedTime() : 0;
+    const windowSec = 10; // rolling 10-second window
+    // Remove old samples
+    this._dpsSamples = this._dpsSamples.filter(s => now - s.time < windowSec);
+    const totalInWindow = this._dpsSamples.reduce((sum, s) => sum + s.damage, 0);
+    // Effective window (might be less than 10s at start)
+    const effectiveTime = Math.min(now, windowSec);
+    return effectiveTime > 0 ? totalInWindow / effectiveTime : 0;
+  }
+
+  // ── T4.1: Slow-Mo Death Effect ──
+
+  _doSlowMoDeath(callback) {
+    // Slow down game to 20% speed for 1.5 seconds, then trigger game over
+    this._slowMoActive = true;
+    this.time.timeScale = 0.2;
+    this.physics.world.timeScale = 0.2;
+
+    // Red vignette
+    const vignette = this.add.rectangle(
+      this.scale.width / 2, this.scale.height / 2,
+      this.scale.width, this.scale.height, 0xff0000, 0
+    ).setScrollFactor(0).setDepth(300);
+
+    this.tweens.add({
+      targets: vignette,
+      alpha: 0.3,
+      duration: 300
+    });
+
+    this.time.delayedCall(1500, () => {
+      // Restore speed
+      this.time.timeScale = 1;
+      this.physics.world.timeScale = 1;
+      this._slowMoActive = false;
+
+      // Fade out to black
+      this.cameras.main.fadeOut(600, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        vignette.destroy();
+        if (callback) callback();
+      });
+    });
   }
 
   // ── QoL: Auto-Pickup Radius ──
