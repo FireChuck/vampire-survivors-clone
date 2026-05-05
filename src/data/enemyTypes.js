@@ -1,5 +1,5 @@
 // enemyTypes.js — Vampire Survivors Clone
-// 8 enemy types with distinct behaviors and progressive unlock times
+// 9 enemy types with distinct behaviors and progressive unlock times
 
 const ENEMY_TYPES = {
   bat: {
@@ -81,5 +81,15 @@ const ENEMY_TYPES = {
     xpValue: 30,
     size: [32, 32],
     minTime: 300000
+  },
+  teleporter: {
+    name: 'Teleporter',
+    color: 0x8844ff,
+    hp: 40,
+    speed: 70,
+    damage: 15,
+    xpValue: 18,
+    size: [18, 18],
+    minTime: 120000
   }
 };

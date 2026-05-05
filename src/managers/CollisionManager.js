@@ -160,6 +160,19 @@ class CollisionManager {
     stats.wasHighScore = wasHighScore || stats.score >= scene.meta.data.highScore;
     stats.newAchievements = newAchievements;
 
+    // Show achievement toasts before game over
+    if (newAchievements.length > 0 && scene.achievementToast) {
+      const allInfo = scene.meta.getAchievementInfo();
+      newAchievements.forEach((id, i) => {
+        const info = allInfo.find(a => a.id === id);
+        if (info) {
+          scene.time.delayedCall(i * 500, () => {
+            scene.achievementToast.show('🏅', info.name, info.desc);
+          });
+        }
+      });
+    }
+
     scene.time.delayedCall(600, () => {
       scene.scene.stop('GameScene');
       scene.scene.start('GameOverScene', stats);

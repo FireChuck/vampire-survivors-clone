@@ -22,6 +22,23 @@ class GameScene extends Phaser.Scene {
 
     // Player
     this.player = new Player(this, 400, 300);
+
+    // Apply character selection data
+    if (this._incomingData.characterStats) {
+      const cs = this._incomingData.characterStats;
+      this.player.maxHp = cs.maxHp;
+      this.player.hp = cs.maxHp;
+      this.player.speed = cs.speed;
+      this.player.damage = cs.damage;
+      this.player.pickupRange = cs.pickupRange;
+      this.player.attackSpeed = cs.attackSpeed;
+      this.player.stats.speed = cs.speed;
+      this.player.stats.maxHp = cs.maxHp;
+      // Store character color for visual
+      this.player._charColor = this._incomingData.characterColor || 0x4488ff;
+      this.player._charHighlight = this._incomingData.characterHighlight || 0x88bbff;
+    }
+
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setZoom(1.0);
 
@@ -112,7 +129,8 @@ class GameScene extends Phaser.Scene {
 
     // ── Managers ──
     this.weaponManager = new WeaponManager(this, this.player);
-    this.weaponManager.addWeapon('staff');
+    const startWeapon = this._incomingData.startWeapon || 'staff';
+    this.weaponManager.addWeapon(startWeapon);
 
     this.spawnManager = new SpawnManager(this);
 
@@ -127,6 +145,27 @@ class GameScene extends Phaser.Scene {
 
     // Audio
     this.audioManager = new AudioManager(this);
+
+    // Achievement Toast System
+    this.achievementToast = new AchievementToast(this);
+
+    // ── Special Events System ──
+    this._specialEvent = {
+      active: false,
+      type: null,
+      timer: 0,
+      nextEventIn: 120000, // First event after 2 minutes
+      duration: 30000,     // Events last 30 seconds
+      announcementAlpha: 0
+    };
+    this._eventOverlay = this.add.rectangle(
+      this.scale.width / 2, this.scale.height / 2,
+      this.scale.width, this.scale.height, 0x000000, 0
+    ).setScrollFactor(0).setDepth(49);
+    this._eventAnnouncement = this.add.text(this.scale.width / 2, 80, '', {
+      fontSize: '22px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 4
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(51).setAlpha(0);
 
     // Particle System
     this.particleSystem = new ParticleSystem(this);
@@ -306,6 +345,9 @@ class GameScene extends Phaser.Scene {
       this.hud.updateKills(this.killCount);
       this.hud.updateEnemyCount(this.enemies.length);
     }
+
+    // Special Events System
+    this._updateSpecialEvents(time, delta);
 
     // FPS counter
     this._fpsFrames++;
@@ -561,5 +603,153 @@ class GameScene extends Phaser.Scene {
     if (ratio > 0.5) this._bossBarFill.setFillStyle(0xe94560);
     else if (ratio > 0.25) this._bossBarFill.setFillStyle(0xff8800);
     else this._bossBarFill.setFillStyle(0xff2222);
+  }
+
+  // ── Special Events System ──
+
+  _updateSpecialEvents(time, delta) {
+    const evt = this._specialEvent;
+
+    if (evt.active) {
+      evt.timer -= delta;
+
+      // Check for Blood Moon effects
+      if (evt.type === 'blood_moon') {
+        for (const enemy of this.enemies) {
+          if (enemy && enemy.active) {
+            enemy.speedMultiplier = 1.4;
+            enemy.damageMultiplier = 1.5;
+          }
+        }
+      }
+
+      // Check for Golden Hour effects
+      if (evt.type === 'golden_hour') {
+        this.player.stats.xpMultiplier = 2.0;
+      }
+
+      // Flash announcement near end
+      if (evt.timer < 3000 && evt.announcementAlpha > 0) {
+        this.tweens.add({
+          targets: this._eventAnnouncement,
+          alpha: 0,
+          duration: 500
+        });
+        evt.announcementAlpha = 0;
+      }
+
+      if (evt.timer <= 0) {
+        this._endSpecialEvent();
+      }
+      return;
+    }
+
+    // Count down to next event
+    evt.nextEventIn -= delta;
+    if (evt.nextEventIn <= 0) {
+      this._triggerSpecialEvent();
+    }
+  }
+
+  _triggerSpecialEvent() {
+    const evt = this._specialEvent;
+    const eventTypes = ['blood_moon', 'golden_hour'];
+    evt.type = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+    evt.active = true;
+    evt.timer = evt.duration;
+    evt.nextEventIn = 120000 + Math.random() * 60000; // 2-3 minutes between events
+
+    if (evt.type === 'blood_moon') {
+      this._eventOverlay.setFillStyle(0xff0000, 0.12);
+      this._eventAnnouncement.setText('🩸 BLOOD MOON — Enemies grow stronger!');
+      this._eventAnnouncement.setStyle({ color: '#ff4444' });
+
+      // Screen tint
+      this.tweens.add({
+        targets: this._eventOverlay,
+        alpha: 1,
+        duration: 1000,
+        yoyo: true,
+        hold: 500,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    } else if (evt.type === 'golden_hour') {
+      this._eventOverlay.setFillStyle(0xffd700, 0.08);
+      this._eventAnnouncement.setText('✨ GOLDEN HOUR — Double XP!');
+      this._eventAnnouncement.setStyle({ color: '#ffd700' });
+
+      this.tweens.add({
+        targets: this._eventOverlay,
+        alpha: 1,
+        duration: 1500,
+        yoyo: true,
+        hold: 300,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    }
+
+    // Show announcement
+    this._eventAnnouncement.setAlpha(0);
+    this._eventAnnouncement.setScale(1.3);
+    evt.announcementAlpha = 1;
+
+    this.tweens.add({
+      targets: this._eventAnnouncement,
+      alpha: 1,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 500,
+      ease: 'Back.easeOut'
+    });
+
+    // Screen shake for dramatic effect
+    this.cameras.main.shake(300, 0.015);
+  }
+
+  _endSpecialEvent() {
+    const evt = this._specialEvent;
+    evt.active = false;
+    evt.type = null;
+
+    // Reset modifiers
+    for (const enemy of this.enemies) {
+      if (enemy && enemy.active) {
+        enemy.speedMultiplier = 1;
+        enemy.damageMultiplier = 1;
+      }
+    }
+    this.player.stats.xpMultiplier = 1;
+
+    // Clear overlay
+    this.tweens.killTweensOf(this._eventOverlay);
+    this.tweens.killTweensOf(this._eventAnnouncement);
+
+    this.tweens.add({
+      targets: [this._eventOverlay, this._eventAnnouncement],
+      alpha: 0,
+      duration: 500,
+      onComplete: () => {
+        this._eventOverlay.setAlpha(0);
+      }
+    });
+  }
+
+  // ── Achievement Toast Integration ──
+
+  _checkAndShowAchievements(statsBefore) {
+    const statsAfter = [...this.meta.data.achievements];
+    const newOnes = statsAfter.filter(a => !statsBefore.includes(a));
+
+    if (newOnes.length === 0) return;
+
+    const allInfo = this.meta.getAchievementInfo();
+    for (const id of newOnes) {
+      const info = allInfo.find(a => a.id === id);
+      if (info) {
+        this.achievementToast.show('🏅', info.name, info.desc);
+      }
+    }
   }
 }

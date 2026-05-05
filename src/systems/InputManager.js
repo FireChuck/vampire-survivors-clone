@@ -1,26 +1,41 @@
-// InputManager.js — Desktop WASD/Arrows + Mobile nipplejs Joystick
-// Dynamic detection: switches mode if device changes
+// InputManager.js — Desktop WASD/Arrows + Custom Mobile Virtual Joystick + Pause Button
+// Pure Phaser 3 touch implementation (no external dependencies)
 
 class InputManager {
   constructor(scene) {
     this.scene = scene;
     this.isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     this.movement = { x: 0, y: 0 };
-    this.joystickZone = null;
-    this._resizeListener = null;
+
+    // Mobile joystick state
+    this._joystickActive = false;
+    this._joystickPointer = null;
+    this._joystickBaseX = 0;
+    this._joystickBaseY = 0;
+    this._joystickThumbX = 0;
+    this._joystickThumbY = 0;
+    this._joystickVecX = 0;
+    this._joystickVecY = 0;
+    this._joystickMaxRadius = 60;
+    this._joystickBaseRadius = 50;
+    this._joystickThumbRadius = 25;
+
+    // Graphics objects (created lazily on first touch)
+    this._joystickBase = null;
+    this._joystickThumb = null;
+    this._pauseBtn = null;
+    this._pauseBtnText = null;
+
+    this._setupDesktop();
 
     if (this.isMobile) {
       this._setupMobile();
     }
-    // Desktop keyboard always works (doesn't hurt to have on mobile too)
 
-    this._setupDesktop();
-
-    // Listen for orientation/resize to re-detect
+    // Listen for orientation/resize
     this._resizeListener = () => {
-      const wasMobile = this.isMobile;
       this.isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      if (this.isMobile && !wasMobile && !this.joystickZone) {
+      if (this.isMobile && !this._pauseBtn) {
         this._setupMobile();
       }
     };
@@ -35,44 +50,164 @@ class InputManager {
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D
     });
+
+    // ESC key for pause (desktop)
+    this.scene.input.keyboard.on('keydown-ESC', function() {
+      if (this.scene._togglePause) this.scene._togglePause();
+    }.bind(this));
   }
 
   _setupMobile() {
-    // Only create joystick if nipplejs is available
-    if (typeof nipplejs === 'undefined') {
-      console.warn('nipplejs not loaded — mobile joystick unavailable');
-      return;
-    }
+    var scene = this.scene;
+    var self = this;
 
-    this.joystickVector = { x: 0, y: 0 };
+    // ── Create joystick graphics (initially hidden) ──
+    this._joystickBase = scene.add.graphics().setDepth(90).setVisible(false);
+    this._joystickThumb = scene.add.graphics().setDepth(91).setVisible(false);
 
-    // Create joystick zone on left side of screen
-    this.joystickZone = nipplejs.create({
-      zone: this.scene.game.canvas,
-      mode: 'static',
-      position: { left: '25%', bottom: '25%' },
-      color: 'rgba(255,255,255,0.15)',
-      size: 150,
-      restOpacity: 0.4
+    // ── Create pause button ──
+    var btnSize = 44;
+    var btnPad = 16;
+    var btnX = scene.scale.width - btnPad - btnSize / 2;
+    var btnY = btnPad + btnSize / 2;
+
+    this._pauseBtn = scene.add.graphics().setDepth(90);
+    this._pauseBtn.setInteractive(
+      new Phaser.Geom.Circle(btnX, btnY, btnSize / 2),
+      Phaser.Geom.Circle.Contains
+    );
+
+    // Draw pause button background
+    this._drawPauseButton(btnX, btnY, btnSize);
+
+    // Pause button text
+    this._pauseBtnText = scene.add.text(btnX, btnY, '\u23F8', {
+      fontSize: '20px',
+      fontFamily: 'Arial, sans-serif',
+      color: '#ffffff'
+    }).setOrigin(0.5).setDepth(91).setScrollFactor(0);
+
+    // Pause button tap handler
+    this._pauseBtn.on('pointerdown', function() {
+      if (scene._togglePause) scene._togglePause();
     });
 
-    this.joystickZone.on('move', (evt, data) => {
-      if (data.direction) {
-        this.joystickVector.x = data.direction.x === 'left' ? -data.force :
-          (data.direction.x === 'right' ? data.force : 0);
-        this.joystickVector.y = data.direction.y === 'up' ? -data.force :
-          (data.direction.y === 'down' ? data.force : 0);
+    // ── Touch handling for joystick ──
+    scene.input.on('pointerdown', function(pointer) {
+      if (self._joystickActive) return; // already tracking a joystick touch
+
+      // Only use touches in the left half of the screen, lower 60%
+      var screenW = scene.scale.width;
+      var screenH = scene.scale.height;
+
+      if (pointer.x < screenW * 0.5 && pointer.y > screenH * 0.4) {
+        self._joystickActive = true;
+        self._joystickPointer = pointer.id;
+        self._joystickBaseX = pointer.x;
+        self._joystickBaseY = pointer.y;
+        self._joystickThumbX = pointer.x;
+        self._joystickThumbY = pointer.y;
+        self._joystickVecX = 0;
+        self._joystickVecY = 0;
+
+        self._drawJoystick();
+        self._joystickBase.setVisible(true);
+        self._joystickThumb.setVisible(true);
       }
     });
 
-    this.joystickZone.on('end', () => {
-      this.joystickVector.x = 0;
-      this.joystickVector.y = 0;
+    scene.input.on('pointermove', function(pointer) {
+      if (!self._joystickActive || pointer.id !== self._joystickPointer) return;
+
+      var dx = pointer.x - self._joystickBaseX;
+      var dy = pointer.y - self._joystickBaseY;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var maxR = self._joystickMaxRadius;
+
+      if (dist > maxR) {
+        dx = (dx / dist) * maxR;
+        dy = (dy / dist) * maxR;
+        dist = maxR;
+      }
+
+      self._joystickThumbX = self._joystickBaseX + dx;
+      self._joystickThumbY = self._joystickBaseY + dy;
+
+      // Normalized vector (-1 to 1)
+      if (dist > 0) {
+        self._joystickVecX = dx / maxR;
+        self._joystickVecY = dy / maxR;
+      } else {
+        self._joystickVecX = 0;
+        self._joystickVecY = 0;
+      }
+
+      self._drawJoystick();
+    });
+
+    scene.input.on('pointerup', function(pointer) {
+      if (!self._joystickActive || pointer.id !== self._joystickPointer) return;
+
+      self._joystickActive = false;
+      self._joystickPointer = null;
+      self._joystickVecX = 0;
+      self._joystickVecY = 0;
+
+      self._joystickBase.setVisible(false);
+      self._joystickThumb.setVisible(false);
+    });
+
+    scene.input.on('gameout', function() {
+      // Safety: release joystick if pointer leaves game area
+      if (self._joystickActive) {
+        self._joystickActive = false;
+        self._joystickPointer = null;
+        self._joystickVecX = 0;
+        self._joystickVecY = 0;
+        self._joystickBase.setVisible(false);
+        self._joystickThumb.setVisible(false);
+      }
     });
   }
 
+  _drawJoystick() {
+    var base = this._joystickBase;
+    var thumb = this._joystickThumb;
+    var bR = this._joystickBaseRadius;
+    var tR = this._joystickThumbRadius;
+
+    // Base circle (semi-transparent)
+    base.clear();
+    base.fillStyle(0xffffff, 0.12);
+    base.lineStyle(2, 0xffffff, 0.25);
+    base.fillCircle(this._joystickBaseX, this._joystickBaseY, bR);
+    base.strokeCircle(this._joystickBaseX, this._joystickBaseY, bR);
+
+    // Thumb circle
+    thumb.clear();
+    thumb.fillStyle(0xffffff, 0.4);
+    thumb.fillCircle(this._joystickThumbX, this._joystickThumbY, tR);
+  }
+
+  _drawPauseButton(cx, cy, size) {
+    var btn = this._pauseBtn;
+    var half = size / 2;
+
+    btn.clear();
+    btn.fillStyle(0x000000, 0.5);
+    btn.fillRoundedRect(cx - half, cy - half, size, size, 10);
+
+    // Draw pause icon bars
+    var barW = 5;
+    var barH = 18;
+    var gap = 6;
+    btn.fillStyle(0xffffff, 0.9);
+    btn.fillRect(cx - gap - barW, cy - barH / 2, barW, barH);
+    btn.fillRect(cx + gap, cy - barH / 2, barW, barH);
+  }
+
   getMovementVector() {
-    let x = 0, y = 0;
+    var x = 0, y = 0;
 
     // Desktop input (always active)
     if (this.cursors) {
@@ -83,17 +218,17 @@ class InputManager {
     }
 
     // Mobile joystick (overrides desktop if active)
-    if (this.isMobile && this.joystickVector) {
-      const jx = this.joystickVector.x;
-      const jy = this.joystickVector.y;
-      if (Math.abs(jx) > 0.1 || Math.abs(jy) > 0.1) {
+    if (this._joystickActive) {
+      var jx = this._joystickVecX;
+      var jy = this._joystickVecY;
+      if (Math.abs(jx) > 0.05 || Math.abs(jy) > 0.05) {
         x = jx;
         y = jy;
       }
     }
 
     // Normalize diagonal
-    const len = Math.sqrt(x * x + y * y);
+    var len = Math.sqrt(x * x + y * y);
     if (len > 1) {
       x /= len;
       y /= len;
@@ -105,10 +240,10 @@ class InputManager {
   }
 
   destroy() {
-    if (this.joystickZone) {
-      this.joystickZone.destroy();
-      this.joystickZone = null;
-    }
+    if (this._joystickBase) { this._joystickBase.destroy(); this._joystickBase = null; }
+    if (this._joystickThumb) { this._joystickThumb.destroy(); this._joystickThumb = null; }
+    if (this._pauseBtn) { this._pauseBtn.destroy(); this._pauseBtn = null; }
+    if (this._pauseBtnText) { this._pauseBtnText.destroy(); this._pauseBtnText = null; }
     if (this._resizeListener) {
       window.removeEventListener('resize', this._resizeListener);
     }

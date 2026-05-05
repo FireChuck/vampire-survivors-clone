@@ -95,5 +95,27 @@ const WEAPON_TYPES = {
     range: 400,
     projectileSize: 8,
     boomerang: true
+  },
+  beam: {
+    name: 'Beam Laser',
+    color: 0x00ffff,
+    damage: 8,
+    cooldown: 3000, // 2s active + 1s cooldown = 3s total cycle
+    speed: 0,
+    piercing: 999,
+    range: 400,
+    projectileSize: 4,
+    beamWidth: 4,
+    beam: true
+  },
+  boomerang_dedicated: {
+    name: 'Boomerang',
+    color: 0xff8800,
+    damage: 12,
+    cooldown: 1200,
+    speed: 250,
+    piercing: 999,
+    range: 300,
+    projectileSize: 8
   }
 };

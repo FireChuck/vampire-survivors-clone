@@ -10,6 +10,16 @@
  */
 var BIOME_ZONES = [
   {
+    name: 'Dungeon',
+    x: 2200, y: 2200,
+    width: 400, height: 400,
+    bgColor: 0x0a0a0a,
+    groundColor: 0x111111,
+    groundTile: 'dungeon_floor',
+    ambientLight: 0.3,
+    isDungeon: true,
+  },
+  {
     name: 'Graveyard',
     x: 0, y: 0,
     width: 2000, height: 2000,
@@ -76,6 +86,13 @@ var BIOME_DECORATIONS = {
     { type: 'skull',       width: 14, height: 16, color: 0xe7e5e4, density: 0.005 },
     { type: 'rubble',      width: 32, height: 24, color: 0x44403c, density: 0.005 },
   ],
+  Dungeon: [
+    { type: 'torch',       width: 10, height: 32, color: 0xf59e0b, density: 0.008, flicker: true },
+    { type: 'iron_gate',   width: 48, height: 64, color: 0x374151, density: 0.002 },
+    { type: 'chains',      width: 20, height: 40, color: 0x6b7280, density: 0.004 },
+    { type: 'blood_stain', width: 32, height: 32, color: 0x7f1d1d, density: 0.006, alpha: 0.35 },
+    { type: 'skull',       width: 14, height: 16, color: 0xe7e5e4, density: 0.004 },
+  ],
 };
 
 /**
@@ -87,6 +104,7 @@ var BIOME_ENEMY_AFFINITY = {
   DarkForest: ['spider', 'slime', 'bat'],
   BloodMoor:  ['zombie', 'demon', 'skeleton'],
   Catacombs:  ['golem', 'ghost', 'demon'],
+  Dungeon:    ['golem', 'demon'],
 };
 
 /**

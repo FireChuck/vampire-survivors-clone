@@ -197,13 +197,32 @@ class SpawnManager {
     }.bind(this));
     if (!typeKeys.length) return;
 
+    // Biome affinity: boost spawn weight for biome-matching enemies
+    var biomeManager = this.scene.biomeManager;
+    if (biomeManager && biomeManager.getCurrentBiomeName) {
+      var weighted = [];
+      for (var ti = 0; ti < typeKeys.length; ti++) {
+        var tk = typeKeys[ti];
+        var weight = biomeManager.getEnemyAffinityBonus(tk);
+        for (var w = 0; w < Math.ceil(weight); w++) {
+          weighted.push(tk);
+        }
+      }
+      if (weighted.length > 0) typeKeys = weighted;
+    }
+
     var typeKey = typeKeys[Math.floor(Math.random() * typeKeys.length)];
     var angle = Math.random() * Math.PI * 2;
     var dist = 500 + Math.random() * 100;
     var x = scene.player.x + Math.cos(angle) * dist;
     var y = scene.player.y + Math.sin(angle) * dist;
 
-    var enemy = new Enemy(scene, x, y, typeKey);
+    var enemy;
+    if (typeKey === 'teleporter') {
+      enemy = new TeleporterEnemy(scene, x, y);
+    } else {
+      enemy = new Enemy(scene, x, y, typeKey);
+    }
 
     // Wave-based scaling: HP +10%/wave, Speed +5%/wave
     var ws = this.waveSystem;

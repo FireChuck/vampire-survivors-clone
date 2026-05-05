@@ -1,4 +1,4 @@
-// BiomeManager.js — Handles biome transitions, decorations, ambient particles, and ground rendering
+// BiomeManager.js — Handles biome transitions, decorations, ambient particles, ground rendering, vignette, dungeon portal
 
 class BiomeManager {
   constructor(scene) {
@@ -7,30 +7,53 @@ class BiomeManager {
     this._biomeGraphics = scene.add.graphics();
     this._biomeGraphics.setDepth(0);
     this._decorationPool = [];
+    this._decorationPositionSet = new Set();
     this._lastBiome = null;
     this._biomeTransitioning = false;
     this._biomeOverlay = null;
     this._biomeNameText = null;
     this._ambientParticles = [];
+    this._vignetteOverlay = null;
+    this._portalMarker = null;
+    this._torchFlickerTimers = [];
     this._initBiomes();
     this._drawGround();
+    this._createVignette();
+    this._createDungeonPortal();
   }
 
   _initBiomes() {
+    // Set initial background based on player position
+    var biome = getBiomeAtPosition(
+      this.scene.player.x + GAME_CONFIG.worldWidth / 2,
+      this.scene.player.y + GAME_CONFIG.worldHeight / 2
+    );
+    if (biome) {
+      this._currentBiome = biome;
+      this._lastBiome = biome.name;
+      var col = Phaser.Display.Color.IntegerToColor(biome.bgColor);
+      this.scene.cameras.main.setBackgroundColor(col.rgba);
+    }
     this._updateBiome();
   }
 
   update() {
     this._updateBiome();
+    this._cullDistantDecorations();
+    this._updateTorchFlicker();
   }
 
   _updateBiome() {
-    const scene = this.scene;
-    const bx = scene.player.x + GAME_CONFIG.worldWidth / 2;
-    const by = scene.player.y + GAME_CONFIG.worldHeight / 2;
-    const biome = getBiomeAtPosition(bx, by);
+    var scene = this.scene;
+    var bx = scene.player.x + GAME_CONFIG.worldWidth / 2;
+    var by = scene.player.y + GAME_CONFIG.worldHeight / 2;
+    var biome = getBiomeAtPosition(bx, by);
 
     if (!biome) return;
+
+    // Smooth color transition at biome boundaries (<200px from edge)
+    this._updateBoundaryBlend(bx, by);
+
     if (this._lastBiome === biome.name) return;
 
     this._lastBiome = biome.name;
@@ -39,15 +62,49 @@ class BiomeManager {
     this._showBiomeName(biome.name);
     this._spawnAmbientParticles(biome.name);
     this._spawnBiomeDecorations(biome);
+    this._updateVignette(biome);
+  }
+
+  _updateBoundaryBlend(worldX, worldY) {
+    var scene = this.scene;
+    var biome = this._currentBiome;
+    if (!biome) return;
+
+    // Check distance to nearest biome edge
+    var distToEdge = this._distanceToBiomeEdge(worldX, worldY, biome);
+    if (distToEdge < 200 && distToEdge >= 0) {
+      // Find neighboring biome
+      var neighbor = getBiomeAtPosition(worldX, worldY); // will return current biome
+      // Blend factor: 0 at edge, 1 at 200px inside
+      var blendFactor = distToEdge / 200;
+
+      var currentColor = Phaser.Display.Color.IntegerToColor(biome.bgColor);
+      var blendedR = Math.round(currentColor.r * blendFactor);
+      var blendedG = Math.round(currentColor.g * blendFactor);
+      var blendedB = Math.round(currentColor.b * blendFactor);
+
+      scene.cameras.main.setBackgroundColor(
+        'rgba(' + blendedR + ',' + blendedG + ',' + blendedB + ',1)'
+      );
+    }
+  }
+
+  _distanceToBiomeEdge(x, y, biome) {
+    var dists = [
+      x - biome.x,
+      (biome.x + biome.width) - x,
+      y - biome.y,
+      (biome.y + biome.height) - y
+    ];
+    return Math.min.apply(null, dists);
   }
 
   _smoothBiomeTransition(biome) {
-    const scene = this.scene;
+    var scene = this.scene;
     if (this._biomeOverlay) this._biomeOverlay.destroy();
 
-    const newColor = Phaser.Display.Color.IntegerToColor(biome.bgColor);
-    const sw = scene.scale.width;
-    const sh = scene.scale.height;
+    var sw = scene.scale.width;
+    var sh = scene.scale.height;
 
     this._biomeOverlay = scene.add.rectangle(sw / 2, sh / 2, sw, sh, biome.bgColor, 0)
       .setDepth(49).setScrollFactor(0);
@@ -58,24 +115,25 @@ class BiomeManager {
       duration: 400,
       ease: 'Sine.easeOut',
       yoyo: true,
-      onComplete: () => {
-        scene.cameras.main.setBackgroundColor(newColor.rgba);
+      onComplete: function() {
+        var col = Phaser.Display.Color.IntegerToColor(biome.bgColor);
+        scene.cameras.main.setBackgroundColor(col.rgba);
         if (this._biomeOverlay) {
           this._biomeOverlay.destroy();
           this._biomeOverlay = null;
         }
-      }
+      }.bind(this)
     });
   }
 
   _showBiomeName(biomeName) {
-    const scene = this.scene;
+    var scene = this.scene;
     if (this._biomeNameText) this._biomeNameText.destroy();
 
-    const displayName = biomeName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    const sw = scene.scale.width;
+    var displayName = biomeName.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+    var sw = scene.scale.width;
 
-    this._biomeNameText = scene.add.text(sw / 2, scene.scale.height * 0.3, `~ ${displayName} ~`, {
+    this._biomeNameText = scene.add.text(sw / 2, scene.scale.height * 0.3, '~ ' + displayName + ' ~', {
       fontSize: '28px',
       fontFamily: 'Arial, sans-serif',
       color: '#ffffff',
@@ -91,54 +149,145 @@ class BiomeManager {
       ease: 'Sine.easeIn',
       hold: 1200,
       yoyo: true,
-      onComplete: () => {
+      onComplete: function() {
         if (this._biomeNameText) {
           this._biomeNameText.destroy();
           this._biomeNameText = null;
         }
-      }
+      }.bind(this)
     });
   }
 
+  // ── Vignette Overlay ──
+
+  _createVignette() {
+    var scene = this.scene;
+    var sw = scene.scale.width;
+    var sh = scene.scale.height;
+
+    // Create vignette using a radial gradient texture
+    var gfx = scene.make.graphics({ x: 0, y: 0, add: false });
+    var cx = sw / 2;
+    var cy = sh / 2;
+    var maxR = Math.sqrt(cx * cx + cy * cy);
+
+    for (var r = maxR; r > 0; r -= 4) {
+      var t = 1 - (r / maxR);
+      var alpha = t < 0.5 ? 0 : (t - 0.5) * 2 * 0.7;
+      gfx.fillStyle(0x000000, alpha);
+      gfx.fillCircle(cx, cy, r);
+    }
+
+    var tex = gfx.generateTexture('vignette_tex', sw, sh);
+    gfx.destroy();
+
+    this._vignetteOverlay = scene.add.image(sw / 2, sh / 2, 'vignette_tex')
+      .setScrollFactor(0).setDepth(48).setAlpha(0).setBlendMode(Phaser.BlendModes.MULTIPLY);
+  }
+
+  _updateVignette(biome) {
+    if (!this._vignetteOverlay) return;
+    if (biome.isDungeon) {
+      this.scene.tweens.add({
+        targets: this._vignetteOverlay,
+        alpha: 1,
+        duration: 800,
+        ease: 'Sine.easeIn'
+      });
+    } else {
+      this.scene.tweens.add({
+        targets: this._vignetteOverlay,
+        alpha: 0,
+        duration: 600,
+        ease: 'Sine.easeOut'
+      });
+    }
+  }
+
+  // ── Dungeon Portal Marker ──
+
+  _createDungeonPortal() {
+    var scene = this.scene;
+    // Portal at dungeon entrance — world coords: (2200, 2200) minus half world for scene coords
+    var portalX = 2200 - GAME_CONFIG.worldWidth / 2;
+    var portalY = 2200 - GAME_CONFIG.worldHeight / 2;
+
+    // Portal visual: glowing circle
+    var portalGfx = scene.add.graphics();
+    portalGfx.fillStyle(0x6b21a8, 0.4);
+    portalGfx.fillCircle(0, 0, 30);
+    portalGfx.lineStyle(3, 0xa855f7, 0.8);
+    portalGfx.strokeCircle(0, 0, 30);
+    portalGfx.lineStyle(1, 0xc084fc, 0.5);
+    portalGfx.strokeCircle(0, 0, 35);
+    portalGfx.setPosition(portalX, portalY).setDepth(3);
+
+    // "DUNGEON" text indicator
+    var portalText = scene.add.text(portalX, portalY - 50, 'DUNGEON', {
+      fontSize: '14px',
+      fontFamily: 'Arial, sans-serif',
+      color: '#c084fc',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 3
+    }).setOrigin(0.5).setDepth(4);
+
+    // Floating animation
+    scene.tweens.add({
+      targets: [portalGfx, portalText],
+      y: portalY - 5,
+      duration: 1500,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1
+    });
+
+    // Pulsing glow
+    scene.tweens.add({
+      targets: portalGfx,
+      alpha: 0.6,
+      duration: 1000,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1
+    });
+
+    this._portalMarker = { gfx: portalGfx, text: portalText };
+  }
+
+  // ── Ambient Particles ──
+
   _spawnAmbientParticles(biomeName) {
-    const scene = this.scene;
-    for (const p of this._ambientParticles) {
-      if (p && p.active) p.destroy();
+    var scene = this.scene;
+    for (var i = 0; i < this._ambientParticles.length; i++) {
+      if (this._ambientParticles[i] && this._ambientParticles[i].active) this._ambientParticles[i].destroy();
     }
     this._ambientParticles = [];
 
-    const count = 8;
+    var count = biomeName === 'Dungeon' ? 4 : 8;
 
-    for (let i = 0; i < count; i++) {
-      const ox = scene.player.x + (Math.random() - 0.5) * 600;
-      const oy = scene.player.y + (Math.random() - 0.5) * 400;
+    for (var i = 0; i < count; i++) {
+      var ox = scene.player.x + (Math.random() - 0.5) * 600;
+      var oy = scene.player.y + (Math.random() - 0.5) * 400;
 
-      let color, size, alpha;
+      var color, size, alpha;
       switch (biomeName) {
         case 'graveyard':
-          color = 0x888899;
-          size = 4 + Math.random() * 6;
-          alpha = 0.15 + Math.random() * 0.1;
-          break;
+          color = 0x888899; size = 4 + Math.random() * 6; alpha = 0.15 + Math.random() * 0.1; break;
         case 'dark_forest':
-          color = 0x225522;
-          size = 3 + Math.random() * 4;
-          alpha = 0.2 + Math.random() * 0.15;
-          break;
-        case 'blood_lands':
-          color = 0x882222;
-          size = 3 + Math.random() * 3;
-          alpha = 0.1 + Math.random() * 0.1;
-          break;
+          color = 0x225522; size = 3 + Math.random() * 4; alpha = 0.2 + Math.random() * 0.15; break;
+        case 'blood_moor':
+          color = 0x882222; size = 3 + Math.random() * 3; alpha = 0.1 + Math.random() * 0.1; break;
+        case 'dungeon':
+          color = 0x6b21a8; size = 2 + Math.random() * 3; alpha = 0.08 + Math.random() * 0.06; break;
         default:
-          color = 0x666666;
-          size = 3 + Math.random() * 3;
-          alpha = 0.1;
+          color = 0x666666; size = 3 + Math.random() * 3; alpha = 0.1;
       }
 
-      const p = scene.add.circle(ox, oy, size, color, alpha).setDepth(2);
+      var p = scene.add.circle(ox, oy, size, color, alpha).setDepth(2);
       this._ambientParticles.push(p);
 
+      var self = this;
       scene.tweens.add({
         targets: p,
         x: ox + (Math.random() - 0.5) * 100,
@@ -148,7 +297,7 @@ class BiomeManager {
         ease: 'Sine.easeInOut',
         repeat: -1,
         delay: Math.random() * 2000,
-        onRepeat: () => {
+        onRepeat: function() {
           if (scene.player && scene.player.active) {
             p.x = scene.player.x + (Math.random() - 0.5) * 600;
             p.y = scene.player.y + (Math.random() - 0.5) * 400;
@@ -158,104 +307,204 @@ class BiomeManager {
     }
   }
 
+  // ── Biome Decorations ──
+
   _spawnBiomeDecorations(biome) {
-    const scene = this.scene;
-    for (const d of this._decorationPool) {
-      if (d && d.active) d.destroy();
+    var scene = this.scene;
+    // Destroy old decorations
+    for (var i = 0; i < this._decorationPool.length; i++) {
+      if (this._decorationPool[i] && this._decorationPool[i].active) this._decorationPool[i].destroy();
     }
     this._decorationPool = [];
+    this._decorationPositionSet = new Set();
+    this._torchFlickerTimers = [];
 
-    const decorations = getDecorationsForBiome(biome.name);
+    var decorations = getDecorationsForBiome(biome.name);
     if (!decorations.length) return;
 
-    const chunkSize = 800;
-    const cx = scene.player.x;
-    const cy = scene.player.y;
+    var chunkSize = 800;
+    var cx = scene.player.x;
+    var cy = scene.player.y;
+    var margin = 100;
 
-    for (const decType of decorations) {
-      const count = Math.floor(decType.density * chunkSize * chunkSize * 0.01);
-      for (let i = 0; i < count; i++) {
-        const x = cx + (Math.random() - 0.5) * chunkSize;
-        const y = cy + (Math.random() - 0.5) * chunkSize;
-        const g = scene.add.graphics();
-        const alpha = decType.alpha || 1.0;
+    for (var d = 0; d < decorations.length; d++) {
+      var decType = decorations[d];
+      var count = Math.floor(decType.density * chunkSize * chunkSize * 0.01);
+      for (var i = 0; i < count; i++) {
+        var x = cx + (Math.random() - 0.5) * chunkSize;
+        var y = cy + (Math.random() - 0.5) * chunkSize;
 
-        g.fillStyle(decType.color, alpha);
+        // Duplicate prevention via grid key
+        var gridKey = Math.floor(x / 40) + ',' + Math.floor(y / 40);
+        if (this._decorationPositionSet.has(gridKey)) continue;
+        this._decorationPositionSet.add(gridKey);
 
-        switch (decType.type) {
-          case 'tombstone':
-          case 'pillar':
-          case 'dead_tree':
-            g.fillRect(x - decType.width / 2, y - decType.height, decType.width, decType.height);
-            break;
-          case 'cross':
-            g.fillRect(x - 2, y - decType.height, 4, decType.height);
-            g.fillRect(x - decType.width / 2, y - decType.height * 0.6, decType.width, 4);
-            break;
-          case 'tree':
-            g.fillStyle(0x5c3a1e, alpha);
-            g.fillRect(x - 4, y - decType.height * 0.4, 8, decType.height * 0.4);
-            g.fillStyle(decType.color, alpha);
-            g.fillCircle(x, y - decType.height * 0.6, decType.width / 2);
-            break;
-          case 'mushroom':
-            g.fillRect(x - 2, y - 6, 4, 6);
-            g.fillCircle(x, y - 8, decType.width / 2);
-            break;
-          case 'rock':
-          case 'rubble':
-            g.fillRoundedRect(x - decType.width / 2, y - decType.height / 2, decType.width, decType.height, 4);
-            break;
-          case 'bush':
-            g.fillCircle(x, y, decType.width / 2);
-            break;
-          case 'fog_patch':
-            g.fillCircle(x, y, decType.width / 2);
-            break;
-          case 'blood_pool':
-          case 'bone_pile':
-            g.fillEllipse(x, y, decType.width, decType.height * 0.6);
-            break;
-          case 'skull':
-            g.fillCircle(x, y, decType.width / 2);
-            g.fillStyle(0x1a1a1a, alpha);
-            g.fillCircle(x - 3, y - 1, 2);
-            g.fillCircle(x + 3, y - 1, 2);
-            break;
-          case 'corpse':
-            g.fillRect(x - decType.width / 2, y - 4, decType.width, 8);
-            break;
-          case 'torch':
-            g.fillRect(x - 2, y - decType.height, 4, decType.height);
-            g.fillStyle(0xff6600, alpha);
-            g.fillCircle(x, y - decType.height - 4, 6);
-            g.fillStyle(0xffcc00, alpha * 0.7);
-            g.fillCircle(x, y - decType.height - 6, 3);
-            break;
-          case 'crack':
-            g.fillRect(x - decType.width / 2, y - 2, decType.width, 4);
-            break;
-          default:
-            g.fillCircle(x, y, decType.width / 3);
-        }
+        var g = scene.add.graphics();
+        var alpha = decType.alpha || 1.0;
+
+        this._drawDecoration(g, decType, x, y, alpha);
 
         g.setDepth(1);
         this._decorationPool.push(g);
+
+        // Track torch decorations for flicker
+        if (decType.type === 'torch' && decType.flicker) {
+          this._torchFlickerTimers.push({ gfx: g, baseAlpha: alpha, timer: Math.random() * 500 });
+        }
       }
     }
   }
 
+  _drawDecoration(g, decType, x, y, alpha) {
+    g.fillStyle(decType.color, alpha);
+
+    switch (decType.type) {
+      case 'tombstone':
+      case 'pillar':
+      case 'dead_tree':
+        g.fillRect(x - decType.width / 2, y - decType.height, decType.width, decType.height);
+        break;
+      case 'cross':
+        g.fillRect(x - 2, y - decType.height, 4, decType.height);
+        g.fillRect(x - decType.width / 2, y - decType.height * 0.6, decType.width, 4);
+        break;
+      case 'tree':
+        g.fillStyle(0x5c3a1e, alpha);
+        g.fillRect(x - 4, y - decType.height * 0.4, 8, decType.height * 0.4);
+        g.fillStyle(decType.color, alpha);
+        g.fillCircle(x, y - decType.height * 0.6, decType.width / 2);
+        break;
+      case 'mushroom':
+        g.fillRect(x - 2, y - 6, 4, 6);
+        g.fillCircle(x, y - 8, decType.width / 2);
+        break;
+      case 'rock':
+      case 'rubble':
+        g.fillRoundedRect(x - decType.width / 2, y - decType.height / 2, decType.width, decType.height, 4);
+        break;
+      case 'bush':
+        g.fillCircle(x, y, decType.width / 2);
+        break;
+      case 'fog_patch':
+        g.fillCircle(x, y, decType.width / 2);
+        break;
+      case 'blood_pool':
+      case 'bone_pile':
+      case 'blood_stain':
+        g.fillEllipse(x, y, decType.width, decType.height * 0.6);
+        break;
+      case 'skull':
+        g.fillCircle(x, y, decType.width / 2);
+        g.fillStyle(0x1a1a1a, alpha);
+        g.fillCircle(x - 3, y - 1, 2);
+        g.fillCircle(x + 3, y - 1, 2);
+        break;
+      case 'corpse':
+        g.fillRect(x - decType.width / 2, y - 4, decType.width, 8);
+        break;
+      case 'torch':
+        // Stick
+        g.fillRect(x - 2, y - decType.height, 4, decType.height);
+        // Flame
+        g.fillStyle(0xff6600, alpha);
+        g.fillCircle(x, y - decType.height - 4, 6);
+        g.fillStyle(0xffcc00, alpha * 0.7);
+        g.fillCircle(x, y - decType.height - 6, 3);
+        break;
+      case 'crack':
+        g.fillRect(x - decType.width / 2, y - 2, decType.width, 4);
+        break;
+      case 'iron_gate':
+        // Two vertical bars
+        g.fillRect(x - decType.width / 2, y - decType.height, 4, decType.height);
+        g.fillRect(x + decType.width / 2 - 4, y - decType.height, 4, decType.height);
+        // Horizontal bars
+        g.fillRect(x - decType.width / 2, y - decType.height, decType.width, 3);
+        g.fillRect(x - decType.width / 2, y - decType.height * 0.5, decType.width, 3);
+        g.fillRect(x - decType.width / 2, y, decType.width, 3);
+        // Pointed top
+        g.fillTriangle(x - decType.width / 2 - 2, y - decType.height, x - decType.width / 2 + 2, y - decType.height, x - decType.width / 2, y - decType.height - 8);
+        g.fillTriangle(x + decType.width / 2 - 2, y - decType.height, x + decType.width / 2 + 2, y - decType.height, x + decType.width / 2, y - decType.height - 8);
+        break;
+      case 'chains':
+        // Vertical chain links
+        for (var ci = 0; ci < 4; ci++) {
+          var ly = y - ci * 10;
+          g.strokeCircle(x, ly, 4);
+        }
+        break;
+      default:
+        g.fillCircle(x, y, decType.width / 3);
+    }
+  }
+
+  _cullDistantDecorations() {
+    var scene = this.scene;
+    if (!scene.player || !scene.cameras || !scene.cameras.main) return;
+
+    var camX = scene.cameras.main.worldView.x;
+    var camY = scene.cameras.main.worldView.y;
+    var camW = scene.cameras.main.worldView.width;
+    var camH = scene.cameras.main.worldView.height;
+    var margin = 200;
+
+    var minX = camX - margin;
+    var maxX = camX + camW + margin;
+    var minY = camY - margin;
+    var maxY = camY + camH + margin;
+
+    for (var i = this._decorationPool.length - 1; i >= 0; i--) {
+      var d = this._decorationPool[i];
+      if (!d || !d.active) {
+        this._decorationPool.splice(i, 1);
+        continue;
+      }
+      // Get position from the graphics object
+      if (d.x < minX || d.x > maxX || d.y < minY || d.y > maxY) {
+        d.destroy();
+        this._decorationPool.splice(i, 1);
+      }
+    }
+  }
+
+  _updateTorchFlicker() {
+    for (var i = 0; i < this._torchFlickerTimers.length; i++) {
+      var entry = this._torchFlickerTimers[i];
+      if (!entry.gfx || !entry.gfx.active) continue;
+      entry.timer += 16; // ~60fps
+      if (entry.timer > 80 + Math.random() * 120) {
+        entry.timer = 0;
+        entry.gfx.setAlpha(entry.baseAlpha * (0.6 + Math.random() * 0.4));
+      }
+    }
+  }
+
+  // ── Enemy Affinity (public API for SpawnManager) ──
+
+  getCurrentBiomeName() {
+    return this._currentBiome ? this._currentBiome.name : null;
+  }
+
+  getEnemyAffinityBonus(enemyType) {
+    if (!this._currentBiome) return 1.0;
+    var affinity = getBiomeEnemyAffinity(this._currentBiome.name);
+    if (affinity.indexOf(enemyType) !== -1) return 1.8; // 80% spawn weight bonus
+    return 1.0;
+  }
+
+  // ── Ground Grid ──
+
   _drawGround() {
-    const scene = this.scene;
-    const g = scene.add.graphics();
+    var scene = this.scene;
+    var g = scene.add.graphics();
     g.lineStyle(1, 0x222244, 0.3);
-    const hw = GAME_CONFIG.worldWidth / 2;
-    const hh = GAME_CONFIG.worldHeight / 2;
-    const ts = GAME_CONFIG.tileSize;
-    for (let x = -hw; x <= hw; x += ts) {
+    var hw = GAME_CONFIG.worldWidth / 2;
+    var hh = GAME_CONFIG.worldHeight / 2;
+    var ts = GAME_CONFIG.tileSize;
+    for (var x = -hw; x <= hw; x += ts) {
       g.lineBetween(x, -hh, x, hh);
     }
-    for (let y = -hh; y <= hh; y += ts) {
+    for (var y = -hh; y <= hh; y += ts) {
       g.lineBetween(-hw, y, hw, y);
     }
     g.setDepth(0);

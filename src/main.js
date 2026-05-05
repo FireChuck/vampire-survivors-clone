@@ -18,7 +18,7 @@ const GameConfig = {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-    scene: [BootScene, MenuScene, GameScene, GameOverScene]
+    scene: [BootScene, MenuScene, CharacterSelectScene, GameScene, GameOverScene]
 };
 
 const game = new Phaser.Game(GameConfig);

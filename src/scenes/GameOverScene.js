@@ -174,7 +174,7 @@ class GameOverScene extends Phaser.Scene {
             this.tweens.add({ targets: btn, scaleX: 1, scaleY: 1, duration: 100 });
         });
         btn.on('pointerdown', () => {
-            this.scene.start('GameScene');
+            this.scene.start('CharacterSelectScene');
         });
 
         // Back to Menu button
