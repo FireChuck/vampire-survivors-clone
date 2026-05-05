@@ -159,6 +159,7 @@ class AudioManager {
           this._osc('triangle', 1800, t + 0.02, 0.1, 0.08);
           break;
         case 'dagger':
+        case 'knife':
           // Quick slash — short noise burst
           this._noise(t, 0.04, 0.15);
           this._osc('sawtooth', 400, t, 0.03, 0.08);
@@ -182,6 +183,30 @@ class AudioManager {
           // Whip crack — sharp snap
           this._noise(t, 0.03, 0.25);
           this._osc('sawtooth', 3000, t, 0.02, 0.08);
+          break;
+        case 'axe':
+          // Heavy axe swing — whoosh + thud
+          this._noise(t, 0.08, 0.12);
+          this._osc('sawtooth', 150, t + 0.05, 0.12, 0.15);
+          break;
+        case 'holyWater':
+          // Holy water splash — chime + liquid
+          this._osc('sine', 1000, t, 0.1, 0.1);
+          this._osc('sine', 1400, t + 0.04, 0.08, 0.08);
+          this._noise(t + 0.06, 0.1, 0.08);
+          break;
+        case 'boomerang':
+        case 'boomerang_dedicated':
+          // Boomerang — whoosh rising + falling
+          this._osc('sine', 300, t, 0.15, 0.1);
+          this._osc('sine', 500, t + 0.08, 0.12, 0.08);
+          this._noise(t, 0.1, 0.05);
+          break;
+        case 'beam':
+          // Beam laser — sustained high-pitch buzz
+          this._osc('sawtooth', 800, t, 0.3, 0.08);
+          this._osc('sine', 1200, t, 0.3, 0.06);
+          this._noise(t, 0.2, 0.04);
           break;
         default:
           // Generic fire
@@ -221,6 +246,38 @@ class AudioManager {
       this._osc('sine', 370, t + 0.25, 0.3, 0.18);  // F#4
       this._osc('sine', 330, t + 0.5, 0.3, 0.16);   // E4
       this._osc('sine', 262, t + 0.75, 0.6, 0.2);   // C4
+    });
+  }
+
+  playWaveStart(waveNum) {
+    this._play((t) => {
+      // Rising horn — 3 quick notes ascending
+      const base = 220 + Math.min(waveNum * 10, 100);
+      this._osc('square', base, t, 0.1, 0.1);
+      this._osc('square', base * 1.25, t + 0.1, 0.1, 0.12);
+      this._osc('square', base * 1.5, t + 0.2, 0.2, 0.15);
+    });
+  }
+
+  playChestOpen() {
+    this._play((t) => {
+      // Bright magical chime + shimmer
+      this._osc('sine', 800, t, 0.15, 0.15);
+      this._osc('sine', 1200, t + 0.08, 0.15, 0.12);
+      this._osc('sine', 1600, t + 0.16, 0.2, 0.1);
+      this._noise(t + 0.1, 0.1, 0.06);
+    });
+  }
+
+  playBossSpawn() {
+    this._play((t) => {
+      // Deep dramatic rumble + thunder crack
+      this._osc('sine', 40, t, 0.8, 0.3);
+      this._osc('sawtooth', 60, t + 0.1, 0.6, 0.15);
+      this._noise(t + 0.2, 0.4, 0.2);
+      // Thunder crack
+      this._noise(t + 0.6, 0.15, 0.35);
+      this._osc('square', 80, t + 0.6, 0.3, 0.2);
     });
   }
 

@@ -108,37 +108,79 @@ class UpgradeSystem {
       const cx = startX + i * (cardWidth + gap) + cardWidth / 2;
       const cy = this.scene.scale.height / 2;
 
+      // Rarity system
+      const roll = Math.random();
+      let rarity, rarityColor, rarityGlow;
+      if (roll < 0.05) {
+        rarity = 'legendary'; rarityColor = '#cc44ff'; rarityGlow = 0xcc44ff;
+      } else if (roll < 0.2) {
+        rarity = 'rare'; rarityColor = '#4488ff'; rarityGlow = 0x4488ff;
+      } else if (roll < 0.5) {
+        rarity = 'uncommon'; rarityColor = '#44cc44'; rarityGlow = 0x44cc44;
+      } else {
+        rarity = 'common'; rarityColor = '#cccccc'; rarityGlow = 0x888888;
+      }
+
       const card = this.scene.add.rectangle(cx, cy, cardWidth, cardHeight, 0x2a2a4a)
-        .setStrokeStyle(2, 0x555)
+        .setStrokeStyle(2, rarityGlow)
         .setInteractive({ useHandCursor: true });
 
+      // Rarity label
+      const rarityLabel = this.scene.add.text(cx, cy - 62, rarity.toUpperCase(), {
+        fontSize: '9px', fontFamily: 'Arial, sans-serif',
+        color: rarityColor, fontStyle: 'bold'
+      }).setOrigin(0.5).setAlpha(0.8);
+
       // Icon emoji
-      const iconText = this.scene.add.text(cx, cy - 50, upgrade.icon || '📦', {
+      const iconText = this.scene.add.text(cx, cy - 45, upgrade.icon || '📦', {
         fontSize: '28px'
       }).setOrigin(0.5);
 
-      const name = this.scene.add.text(cx, cy - 22, upgrade.name, {
-        fontSize: '16px', fontFamily: 'Arial, sans-serif',
-        color: '#e94560', fontStyle: 'bold'
+      const name = this.scene.add.text(cx, cy - 18, upgrade.name, {
+        fontSize: '15px', fontFamily: 'Arial, sans-serif',
+        color: rarityColor, fontStyle: 'bold'
       }).setOrigin(0.5);
 
-      const desc = this.scene.add.text(cx, cy + 8, upgrade.description || '', {
-        fontSize: '12px', fontFamily: 'Arial, sans-serif',
+      const desc = this.scene.add.text(cx, cy + 10, upgrade.description || '', {
+        fontSize: '11px', fontFamily: 'Arial, sans-serif',
         color: '#aaa', wordWrap: { width: cardWidth - 20 }
       }).setOrigin(0.5);
 
-      // Hover: scale up + glow border
+      // ── Smooth card appearance animation ──
+      card.setAlpha(0);
+      card.setScale(0.5);
+      iconText.setAlpha(0);
+      rarityLabel.setAlpha(0);
+      name.setAlpha(0);
+      desc.setAlpha(0);
+
+      this.scene.tweens.add({
+        targets: [card, iconText, rarityLabel, name, desc],
+        alpha: 1,
+        duration: 350,
+        delay: 150 + i * 100,
+        ease: 'Back.easeOut'
+      });
+      this.scene.tweens.add({
+        targets: card,
+        scaleX: 1, scaleY: 1,
+        duration: 400,
+        delay: 150 + i * 100,
+        ease: 'Back.easeOut'
+      });
+
+      // ── Hover: scale up + glow border ──
       card.on('pointerover', () => {
         card.setStrokeStyle(3, 0xffd700);
         this.scene.tweens.add({
           targets: card,
-          scaleX: 1.05, scaleY: 1.05,
+          scaleX: 1.08, scaleY: 1.08,
           duration: 150,
           ease: 'Back.easeOut'
         });
       });
       card.on('pointerout', () => {
-        card.setStrokeStyle(2, 0x555);
+        card.setStrokeStyle(2, rarityGlow);
         this.scene.tweens.add({
           targets: card,
           scaleX: 1, scaleY: 1,
@@ -162,9 +204,44 @@ class UpgradeSystem {
       });
 
       this._uiContainer.add(card);
+      this._uiContainer.add(rarityLabel);
       this._uiContainer.add(iconText);
       this._uiContainer.add(name);
       this._uiContainer.add(desc);
+    });
+
+    // ── Timer bar (auto-select after 15 seconds) ──
+    this._upgradeTimer = 15000;
+    const timerBarWidth = totalWidth;
+    const timerBarX = startX;
+    const timerBarY = this.scene.scale.height / 2 + cardHeight / 2 + 15;
+    const timerBg = this.scene.add.rectangle(timerBarX + timerBarWidth / 2, timerBarY, timerBarWidth, 6, 0x333333, 0.8).setOrigin(0.5);
+    const timerFill = this.scene.add.rectangle(timerBarX, timerBarY, timerBarWidth, 6, 0xffd700, 0.9).setOrigin(0, 0.5);
+    const timerText = this.scene.add.text(timerBarX + timerBarWidth / 2, timerBarY + 14, '15', {
+      fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#888'
+    }).setOrigin(0.5);
+    this._uiContainer.add(timerBg);
+    this._uiContainer.add(timerFill);
+    this._uiContainer.add(timerText);
+
+    this._timerEvent = this.scene.time.addEvent({
+      delay: 100,
+      repeat: 150,
+      callback: () => {
+        this._upgradeTimer -= 100;
+        const ratio = Math.max(0, this._upgradeTimer / 15000);
+        timerFill.width = timerBarWidth * ratio;
+        timerText.setText(Math.ceil(this._upgradeTimer / 1000).toString());
+        if (ratio < 0.3) {
+          timerFill.setFillStyle(0xff4444);
+        } else if (ratio < 0.6) {
+          timerFill.setFillStyle(0xffaa00);
+        }
+        if (this._upgradeTimer <= 0) {
+          // Auto-select first card
+          this._closeUpgradeSelection();
+        }
+      }
     });
   }
 
@@ -248,6 +325,10 @@ class UpgradeSystem {
   }
 
   _closeUpgradeSelection() {
+    if (this._timerEvent) {
+      this._timerEvent.destroy();
+      this._timerEvent = null;
+    }
     if (this._uiContainer) {
       this._uiContainer.destroy();
       this._uiContainer = null;

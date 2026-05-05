@@ -4,11 +4,20 @@
  */
 
 /**
- * 4 biome quadrants covering the world map.
+ * 5 biome zones + 1 dungeon overlay covering the world map.
  * Coordinates match GAME_CONFIG.worldWidth/worldHeight (4000×4000).
- * Player starts at center (2000, 2000) — Graveyard/Forest border.
+ * Player starts at center (2000, 2000) — Catacombs/Forest border.
+ *
+ * Layout:
+ *   Top-left:     Graveyard (0,0 → 2000,2000)
+ *   Top-right:    Dark Forest (2000,0 → 4000,2000)
+ *   Bot-left-top: Blood Moor (0,2000 → 2000,3000)
+ *   Bot-left-bot: Cursed Swamp (0,3000 → 2000,4000)
+ *   Bot-right:    Catacombs (2000,2000 → 4000,4000)
+ *   Overlay:      Dungeon (2200,2200 → 2600,2600) inside Catacombs
  */
 var BIOME_ZONES = [
+  // Check dungeon FIRST (smallest, highest priority)
   {
     name: 'Dungeon',
     x: 2200, y: 2200,
@@ -40,11 +49,21 @@ var BIOME_ZONES = [
   {
     name: 'Blood Moor',
     x: 0, y: 2000,
-    width: 2000, height: 2000,
+    width: 2000, height: 1000,
     bgColor: 0x2e1a1a,
     groundColor: 0x442d2d,
     groundTile: 'dirt_blood',
     ambientLight: 0.55,
+  },
+  {
+    name: 'Cursed Swamp',
+    x: 0, y: 3000,
+    width: 2000, height: 1000,
+    bgColor: 0x0d1f0d,
+    groundColor: 0x1a3318,
+    groundTile: 'swamp_mud',
+    ambientLight: 0.35,
+    isSwamp: true,
   },
   {
     name: 'Catacombs',
@@ -80,6 +99,13 @@ var BIOME_DECORATIONS = {
     { type: 'corpse',      width: 28, height: 16, color: 0x7f1d1d, density: 0.003 },
     { type: 'torch',       width: 10, height: 24, color: 0xf59e0b, density: 0.004, emissive: true },
   ],
+  CursedSwamp: [
+    { type: 'poison_pool', width: 56, height: 56, color: 0x445522, density: 0.008, alpha: 0.35 },
+    { type: 'dead_tree',   width: 32, height: 56, color: 0x2a3322, density: 0.006 },
+    { type: 'swamp_gas',   width: 48, height: 48, color: 0x667744, density: 0.005, alpha: 0.2 },
+    { type: 'mushroom',    width: 14, height: 18, color: 0x88aa44, density: 0.007 },
+    { type: 'fog_patch',   width: 80, height: 80, color: 0x556633, density: 0.006, alpha: 0.12 },
+  ],
   Catacombs: [
     { type: 'pillar',      width: 24, height: 48, color: 0x525252, density: 0.006 },
     { type: 'crack',       width: 40, height: 8,  color: 0x292524, density: 0.004 },
@@ -103,6 +129,7 @@ var BIOME_ENEMY_AFFINITY = {
   Graveyard:  ['skeleton', 'ghost', 'bat'],
   DarkForest: ['spider', 'slime', 'bat'],
   BloodMoor:  ['zombie', 'demon', 'skeleton'],
+  CursedSwamp: ['slime', 'ghost', 'tank'],
   Catacombs:  ['golem', 'ghost', 'demon'],
   Dungeon:    ['golem', 'demon'],
 };

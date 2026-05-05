@@ -34,7 +34,7 @@ class CollisionManager {
       scene.killCount++;
       scene._updateKillStreak();
       if (scene.audioManager) scene.audioManager.playEnemyDeath();
-      if (scene.particleSystem) scene.particleSystem.emitDeath(data.x, data.y);
+      if (scene.particleSystem) scene.particleSystem.emitDeath(data.x, data.y, data.color || 0xff4444);
       if (scene.damageNumbers) scene.damageNumbers.show(data.x, data.y, data.xpValue, 'xp');
       if (scene.player.stats.explosionOnKill) {
         scene.weaponManager.explosionOnKill(data.x, data.y);
@@ -173,7 +173,7 @@ class CollisionManager {
       });
     }
 
-    scene.time.delayedCall(600, () => {
+    scene.time.delayedCall(1800, () => {
       scene.scene.stop('GameScene');
       scene.scene.start('GameOverScene', stats);
     });

@@ -20,9 +20,13 @@ class BiomeManager {
     this._hudBiomeBadge = null;
     this._biomeEntryBanner = null;
     this._dungeonFadeRect = null;
+    this._swampFogOverlay = null;
+    this._swampPoisonPools = [];
+    this._swampPoisonTimer = 0;
+    this._swampPoisonInterval = 2000; // damage every 2s
     this._BIOME_EMOJI = {
       Graveyard: '⚰', Dark_Forest: '🌲', Blood_Moor: '🩸',
-      Catacombs: '💀', Dungeon: '🏚'
+      Catacombs: '💀', Dungeon: '🏚', Cursed_Swamp: '☠️'
     };
     this._initBiomes();
     this._drawGround();
@@ -49,6 +53,7 @@ class BiomeManager {
     this._updateBiome();
     this._cullDistantDecorations();
     this._updateTorchFlicker();
+    this._updateSwampEffects();
   }
 
   _updateBiome() {

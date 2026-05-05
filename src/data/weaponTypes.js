@@ -108,6 +108,19 @@ const WEAPON_TYPES = {
     beamWidth: 4,
     beam: true
   },
+  lightning_chain: {
+    name: 'Lightning Chain',
+    color: 0xaaddff,
+    damage: 22,
+    cooldown: 1400,
+    speed: 450,
+    piercing: 1,
+    range: 500,
+    projectileSize: 8,
+    bounces: 3,
+    bounceRange: 200,
+    damageFalloff: 0.7
+  },
   boomerang_dedicated: {
     name: 'Boomerang',
     color: 0xff8800,

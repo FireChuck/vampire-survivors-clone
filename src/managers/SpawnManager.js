@@ -26,7 +26,7 @@ class SpawnManager {
     this._chests = [];
     this._lastChestSpawnTime = 0;
     this._chestSpawnInterval = GAME_CONFIG.chestSpawnInterval * 1000;
-    this._dlcEnemySpawnTimers = { summoner: 0, exploder: 0 };
+    this._dlcEnemySpawnTimers = { summoner: 0, exploder: 0, tank: 0 };
   }
 
   update(time, delta) {
@@ -131,6 +131,9 @@ class SpawnManager {
 
     // Show wave announcement
     this._showWaveAnnouncement(ws.currentWave, isBossWave);
+
+    // Wave start sound
+    if (this.scene.audioManager) this.scene.audioManager.playWaveStart(ws.currentWave);
   }
 
   _waveSpawning(delta) {
@@ -267,6 +270,9 @@ class SpawnManager {
     ws.bossActive = true;
 
     if (scene.screenShake) scene.screenShake.shake('bossSpawn');
+
+    // Boss spawn sound
+    if (scene.audioManager) scene.audioManager.playBossSpawn();
 
     scene._showBossHPBar(boss);
 

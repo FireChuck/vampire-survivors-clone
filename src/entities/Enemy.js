@@ -305,21 +305,35 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   onDeath() {
-    // Particle + audio handled by GameScene via events
+    // Fade + scale down death animation
+    if (this._graphics && this._graphics.active) {
+      this.scene.tweens.add({
+        targets: this._graphics,
+        alpha: 0,
+        scaleX: 0.3,
+        scaleY: 0.3,
+        duration: 200,
+        ease: 'Power2'
+      });
+    }
 
-    // Emit event
+    // Emit event (particles + audio handled by CollisionManager event listeners)
     this.scene.events.emit('enemyKilled', {
       x: this.x,
       y: this.y,
       xpValue: this.xpValue,
-      enemyType: this.enemyTypeKey
+      enemyType: this.enemyTypeKey,
+      color: this.color
     });
 
     if (this.scene.killCount !== undefined) {
       this.scene.killCount++;
     }
 
-    this.destroy();
+    // Destroy after fade animation completes
+    this.scene.time.delayedCall(220, () => {
+      if (this.active) this.destroy();
+    });
   }
 
   // Death particles now handled by ParticleSystem via enemyKilled event

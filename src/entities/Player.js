@@ -123,11 +123,40 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.setTint(0xff0000);
     this.body.enable = false;
 
-    // Death particles
+    // ── Death Animation Polish ──
+    // 1. Screen flash — white overlay fade-out
+    const sw = this.scene.scale.width;
+    const sh = this.scene.scale.height;
+    const flash = this.scene.add.rectangle(sw / 2, sh / 2, sw, sh, 0xffffff, 0)
+      .setDepth(500).setScrollFactor(0);
+    this.scene.tweens.add({
+      targets: flash,
+      alpha: 0.7,
+      duration: 150,
+      yoyo: true,
+      hold: 100,
+      onComplete: () => flash.destroy()
+    });
+
+    // 2. Slow-mo effect (time scale 0.3, 1 sec)
+    if (this.scene.time && this.scene.physics) {
+      this.scene.physics.world.timeScale = 0.3;
+      this.scene.time.timeScale = 0.3;
+      this.scene.time.delayedCall(1000, () => {
+        if (this.scene.physics && this.scene.physics.world) {
+          this.scene.physics.world.timeScale = 1;
+        }
+        if (this.scene.time) {
+          this.scene.time.timeScale = 1;
+        }
+      });
+    }
+
+    // 3. Death particles
     this._spawnDeathParticles();
 
     // Let GameScene handle the GameOver transition (proper cleanup)
-    this.scene.time.delayedCall(500, () => {
+    this.scene.time.delayedCall(1500, () => {
       if (this.scene._triggerGameOver) {
         this.scene._triggerGameOver();
       }

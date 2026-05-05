@@ -54,33 +54,51 @@ class ParticleSystem {
   }
 
   emitLevelUp(x, y) {
-    // Golden starburst — rings expanding outward
-    const count = 16;
+    // Radial gold sparkles — improved with expanding ring effect
+    const count = 24;
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2;
-      const speed = 100 + Math.random() * 60;
-      const colors = [0xffd700, 0xffaa00, 0xffff44, 0xffcc00];
+      const speed = 80 + Math.random() * 100;
+      const colors = [0xffd700, 0xffaa00, 0xffff44, 0xffcc00, 0xffffff];
       this._add({
         x, y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        life: 500 + Math.random() * 200,
-        maxLife: 700,
-        size: 3 + Math.random() * 2,
+        life: 600 + Math.random() * 300,
+        maxLife: 900,
+        size: 2 + Math.random() * 3,
         color: colors[i % colors.length],
         alpha: 1,
         shrink: true
       });
     }
-    // Inner sparkle
-    for (let i = 0; i < 6; i++) {
+    // Second inner ring (delayed burst)
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2 + 0.26;
+      const speed = 50 + Math.random() * 40;
       this._add({
-        x: x + (Math.random() - 0.5) * 20,
+        x: x + (Math.random() - 0.5) * 10,
+        y: y + (Math.random() - 0.5) * 10,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 30,
+        life: 400 + Math.random() * 200,
+        maxLife: 600,
+        size: 1.5 + Math.random() * 2,
+        color: 0xffffff,
+        alpha: 0.9,
+        shrink: true,
+        gravity: -30
+      });
+    }
+    // Rising sparkle column
+    for (let i = 0; i < 8; i++) {
+      this._add({
+        x: x + (Math.random() - 0.5) * 30,
         y: y + (Math.random() - 0.5) * 20,
-        vx: (Math.random() - 0.5) * 30,
-        vy: -50 - Math.random() * 50,
-        life: 400 + Math.random() * 300,
-        maxLife: 700,
+        vx: (Math.random() - 0.5) * 20,
+        vy: -80 - Math.random() * 60,
+        life: 500 + Math.random() * 400,
+        maxLife: 900,
         size: 2 + Math.random() * 3,
         color: 0xffffff,
         alpha: 1,
@@ -145,6 +163,22 @@ class ParticleSystem {
         alpha: 0.5,
         shrink: false,
         grow: true
+      });
+    }
+
+    // Screen-edge glow on big explosions (radius >= 50)
+    if (r >= 50 && this.scene && this.scene.cameras && this.scene.cameras.main) {
+      const sw = this.scene.scale.width;
+      const sh = this.scene.scale.height;
+      const glow = this.scene.add.rectangle(sw / 2, sh / 2, sw, sh, 0xff6600, 0)
+        .setDepth(998).setScrollFactor(0);
+      this.scene.tweens.add({
+        targets: glow,
+        alpha: 0.25,
+        duration: 100,
+        yoyo: true,
+        hold: 50,
+        onComplete: () => glow.destroy()
       });
     }
   }

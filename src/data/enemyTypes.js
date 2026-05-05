@@ -91,5 +91,15 @@ const ENEMY_TYPES = {
     xpValue: 18,
     size: [18, 18],
     minTime: 120000
+  },
+  tank: {
+    name: 'Tank',
+    color: 0x2266aa,
+    hp: 480,
+    speed: 15,
+    damage: 38,
+    xpValue: 90,
+    size: [38, 38],
+    minTime: 300000
   }
 };

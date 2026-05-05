@@ -1,4 +1,6 @@
-// GameOverScene.js — Game Over screen with stats, staggered animations, NEW HIGH SCORE
+// GameOverScene.js — Game Over screen with 6+ stats, slow-mo death, fade-out
+// Stats: Kills, Time, Level, Score, Items Collected, DPS
+// Features: Slow-mo before screen, fade-out transition, staggered animations, NEW HIGH SCORE
 
 class GameOverScene extends Phaser.Scene {
     constructor() {
@@ -6,7 +8,7 @@ class GameOverScene extends Phaser.Scene {
     }
 
     init(data) {
-        this.stats = data || { score: 0, killCount: 0, level: 1, time: 0 };
+        this.stats = data || { score: 0, killCount: 0, level: 1, time: 0, itemsCollected: 0, dps: 0 };
     }
 
     create() {
@@ -20,7 +22,7 @@ class GameOverScene extends Phaser.Scene {
 
         // NEW HIGH SCORE animation
         if (this.stats.wasHighScore) {
-            const hsText = this.add.text(cx, cy - 170, '🏆 NEW HIGH SCORE! 🏆', {
+            const hsText = this.add.text(cx, cy - 200, '🏆 NEW HIGH SCORE! 🏆', {
                 fontSize: '24px',
                 fontFamily: 'Arial, sans-serif',
                 color: '#ffd700',
@@ -52,12 +54,12 @@ class GameOverScene extends Phaser.Scene {
             // Gold sparkle particles around high score text
             for (let i = 0; i < 12; i++) {
                 const angle = (Math.PI * 2 / 12) * i;
-                const spark = this.add.circle(cx, cy - 170, 2, 0xffd700, 0.8).setDepth(11).setAlpha(0);
+                const spark = this.add.circle(cx, cy - 200, 2, 0xffd700, 0.8).setDepth(11).setAlpha(0);
                 this.tweens.add({
                     targets: spark,
                     alpha: 1,
                     x: cx + Math.cos(angle) * (60 + Math.random() * 30),
-                    y: cy - 170 + Math.sin(angle) * (20 + Math.random() * 15),
+                    y: cy - 200 + Math.sin(angle) * (20 + Math.random() * 15),
                     duration: 400 + i * 50,
                     ease: 'Sine.easeOut',
                     yoyo: true,
@@ -69,7 +71,7 @@ class GameOverScene extends Phaser.Scene {
         }
 
         // GAME OVER title — dramatic fade in
-        const title = this.add.text(cx, cy - 120, '💀 GAME OVER', {
+        const title = this.add.text(cx, cy - 150, '💀 GAME OVER', {
             fontSize: '42px',
             fontFamily: 'Arial, sans-serif',
             color: '#e94560',
@@ -81,25 +83,40 @@ class GameOverScene extends Phaser.Scene {
         this.tweens.add({
             targets: title,
             alpha: 1,
-            y: cy - 110,
+            y: cy - 140,
             duration: 800,
             ease: 'Power2'
         });
 
-        // Stats — staggered fade-in
+        // Stats — staggered fade-in — 6 stats total
         const m = String(Math.floor(this.stats.time / 60)).padStart(2, '0');
         const s = String(this.stats.time % 60).padStart(2, '0');
+        const dps = this.stats.dps ? this.stats.dps.toFixed(1) : '0.0';
+        const items = this.stats.itemsCollected || 0;
 
         const statsLines = [
             { text: `⭐ Score: ${this.stats.score}`, color: '#ffd700' },
             { text: `💀 Kills: ${this.stats.killCount}`, color: '#e94560' },
             { text: `📈 Level: ${this.stats.level}`, color: '#4ecdc4' },
-            { text: `⏱ Time: ${m}:${s}`, color: '#aaaaff' }
+            { text: `⏱ Time: ${m}:${s}`, color: '#aaaaff' },
+            { text: `📦 Items: ${items}`, color: '#ff88ff' },
+            { text: `🔥 DPS: ${dps}`, color: '#ff8800' }
         ];
 
+        // Stats background panel
+        const panelH = statsLines.length * 32 + 16;
+        const statsPanel = this.add.rectangle(cx, cy - 30 + panelH / 2 - 8, 260, panelH, 0x000000, 0.3)
+            .setDepth(9).setAlpha(0).setOrigin(0.5);
+        this.tweens.add({
+            targets: statsPanel,
+            alpha: 1,
+            duration: 600,
+            delay: 400
+        });
+
         statsLines.forEach((line, i) => {
-            const statText = this.add.text(cx, cy - 30 + i * 35, line.text, {
-                fontSize: '18px',
+            const statText = this.add.text(cx, cy - 30 + i * 32, line.text, {
+                fontSize: '17px',
                 fontFamily: 'Arial, sans-serif',
                 color: line.color,
                 stroke: '#000',
@@ -111,14 +128,14 @@ class GameOverScene extends Phaser.Scene {
                 alpha: 1,
                 x: cx + 20,
                 duration: 400,
-                delay: 500 + i * 200,
+                delay: 500 + i * 180,
                 ease: 'Power2'
             });
         });
 
         // New achievements
         if (this.stats.newAchievements && this.stats.newAchievements.length > 0) {
-            const achText = this.add.text(cx, cy + 120, `🏅 ${this.stats.newAchievements.join(', ')}`, {
+            const achText = this.add.text(cx, cy + statsLines.length * 32 + 10, `🏅 ${this.stats.newAchievements.join(', ')}`, {
                 fontSize: '14px',
                 fontFamily: 'Arial, sans-serif',
                 color: '#ffd700',
@@ -136,11 +153,10 @@ class GameOverScene extends Phaser.Scene {
         }
 
         // Play Again button — fade in last
-        const btnY = this.stats.newAchievements && this.stats.newAchievements.length > 0 ? cy + 160 : cy + 130;
-        const btn = this.add.rectangle(cx, btnY, 220, 50, 0x4ecdc4)
+        const btnBaseY = cy + statsLines.length * 32 + (this.stats.newAchievements && this.stats.newAchievements.length > 0 ? 50 : 20);
+        const btn = this.add.rectangle(cx, btnBaseY, 220, 50, 0x4ecdc4)
             .setInteractive({ useHandCursor: true }).setDepth(10).setAlpha(0);
-
-        this.add.text(cx, btnY, '▶ Play Again', {
+        const btnText = this.add.text(cx, btnBaseY, '▶ Play Again', {
             fontSize: '22px',
             fontFamily: 'Arial, sans-serif',
             color: '#fff',
@@ -148,18 +164,7 @@ class GameOverScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(11).setAlpha(0);
 
         this.tweens.add({
-            targets: [btn, btn.list ? btn : []],
-            alpha: 1,
-            duration: 400,
-            delay: 1800
-        });
-        // Fade in button text separately
-        if (btn.list && btn.list.length) {
-            // Phaser containers handle this
-        }
-        // Simple approach: just set alpha on all children
-        this.tweens.add({
-            targets: this.children.list.filter(c => c.y === btnY && c.depth === 11),
+            targets: [btn, btnText],
             alpha: 1,
             duration: 400,
             delay: 1800
@@ -174,28 +179,25 @@ class GameOverScene extends Phaser.Scene {
             this.tweens.add({ targets: btn, scaleX: 1, scaleY: 1, duration: 100 });
         });
         btn.on('pointerdown', () => {
-            this.scene.start('CharacterSelectScene');
+            // Fade-out transition to character select
+            this.cameras.main.fadeOut(400, 0, 0, 0);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('CharacterSelectScene');
+            });
         });
 
         // Back to Menu button
-        const menuY = btnY + 60;
+        const menuY = btnBaseY + 60;
         const menuBtn = this.add.rectangle(cx, menuY, 220, 50, 0x555555)
             .setInteractive({ useHandCursor: true }).setDepth(10).setAlpha(0);
-
-        this.add.text(cx, menuY, '🏠 Main Menu', {
+        const menuBtnText = this.add.text(cx, menuY, '🏠 Main Menu', {
             fontSize: '18px',
             fontFamily: 'Arial, sans-serif',
             color: '#ccc'
         }).setOrigin(0.5).setDepth(11).setAlpha(0);
 
         this.tweens.add({
-            targets: [menuBtn],
-            alpha: 1,
-            duration: 400,
-            delay: 2000
-        });
-        this.tweens.add({
-            targets: this.children.list.filter(c => c.y === menuY && c.depth === 11),
+            targets: [menuBtn, menuBtnText],
             alpha: 1,
             duration: 400,
             delay: 2000
@@ -210,7 +212,13 @@ class GameOverScene extends Phaser.Scene {
             this.tweens.add({ targets: menuBtn, scaleX: 1, scaleY: 1, duration: 100 });
         });
         menuBtn.on('pointerdown', () => {
-            this.scene.start('MenuScene');
+            this.cameras.main.fadeOut(400, 0, 0, 0);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('MenuScene');
+            });
         });
+
+        // Fade-in the entire scene
+        this.cameras.main.fadeIn(600, 0, 0, 0);
     }
 }
