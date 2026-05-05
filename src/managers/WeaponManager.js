@@ -72,11 +72,61 @@ class WeaponManager {
 
   _fireWeapon(weaponKey, type, level) {
     const scene = this.scene;
-    const target = this.findNearestEnemy(type.range * 1.5);
-    if (!target && !type.aura) return;
-
     const px = this.player.x;
     const py = this.player.y;
+
+    // Beam: special handling — fires toward mouse, manages own lifecycle
+    if (type.beam) {
+      // Only fire if no active beam exists
+      if (this._activeBeam && this._activeBeam.active) return;
+      const pointer = scene.inputManager ? scene.inputManager.getPointer() : null;
+      let direction;
+      if (pointer) {
+        const dx = pointer.worldX - px;
+        const dy = pointer.worldY - py;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        direction = dist > 1 ? { x: dx / dist, y: dy / dist } : { x: 1, y: 0 };
+      } else {
+        direction = { x: 1, y: 0 };
+      }
+      const stats = {
+        damage: type.damage,
+        range: type.range,
+        level: level || 1
+      };
+      const beam = new BeamProjectile(scene, px, py, direction, stats);
+      scene.projectileGroup.add(beam);
+      this._activeProjectiles.push(beam);
+      this._activeBeam = beam;
+      if (scene.audioManager) scene.audioManager.playWeaponFire(weaponKey);
+      return;
+    }
+
+    // Dedicated boomerang: uses BoomerangProjectile class
+    if (weaponKey === 'boomerang_dedicated') {
+      const target = this.findNearestEnemy(type.range * 1.5);
+      let direction;
+      if (target) {
+        const dx = target.x - px;
+        const dy = target.y - py;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        direction = { x: dx / dist, y: dy / dist };
+      } else {
+        direction = { x: 1, y: 0 };
+      }
+      const stats = {
+        damage: type.damage,
+        level: level || 1
+      };
+      const boom = new BoomerangProjectile(scene, px, py, direction, stats);
+      scene.projectileGroup.add(boom);
+      this._activeProjectiles.push(boom);
+      if (scene.audioManager) scene.audioManager.playWeaponFire(weaponKey);
+      return;
+    }
+
+    const target = this.findNearestEnemy(type.range * 1.5);
+    if (!target && !type.aura) return;
 
     if (type.aura) return;
 
@@ -130,8 +180,13 @@ class WeaponManager {
     for (let i = this._activeProjectiles.length - 1; i >= 0; i--) {
       const p = this._activeProjectiles[i];
       if (!p || !p.active) {
+        // Clean up beam reference
+        if (p === this._activeBeam) this._activeBeam = null;
         this._activeProjectiles.splice(i, 1);
-        if (p) scene.projectilePool.release(p);
+        // Only return to pool if it's a pooled projectile (not beam/boomerang_dedicated)
+        if (p && p.weaponTypeKey !== 'beam' && p.weaponTypeKey !== 'boomerang_dedicated') {
+          scene.projectilePool.release(p);
+        }
       } else {
         p.update(time, delta);
       }
