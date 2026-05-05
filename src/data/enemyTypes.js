@@ -111,5 +111,29 @@ const ENEMY_TYPES = {
     xpValue: 25,
     size: [28, 28],
     minTime: 0 // Handled by wave/DLC spawn, not minTime
+  },
+  fire_elemental: {
+    name: 'Fire Elemental',
+    color: 0xff6600,
+    hp: 60,
+    speed: 130,
+    damage: 18,
+    xpValue: 22,
+    size: [20, 20],
+    minTime: 180000,
+    special: 'fire_trail',
+    specialDesc: 'Leaves fire trail, explodes on death'
+  },
+  lava_golem: {
+    name: 'Lava Golem',
+    color: 0xaa3300,
+    hp: 200,
+    speed: 30,
+    damage: 28,
+    xpValue: 45,
+    size: [34, 34],
+    minTime: 240000,
+    special: 'lava_projectile',
+    specialDesc: 'Throws lava projectiles at player'
   }
 };

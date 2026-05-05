@@ -6,6 +6,7 @@ class DamageNumbers {
     this.scene = scene;
     this._pool = [];
     this._maxPool = 50;
+    this.enabled = true;
 
     // Damage type color mapping
     this.typeColors = {
@@ -34,6 +35,7 @@ class DamageNumbers {
    * @param {boolean} [isCrit] - force critical hit display
    */
   show(x, y, value, type, damageType, isCrit) {
+    if (!this.enabled && type !== 'bestiary') return;
     const text = this._getOrCreate(x, y, value, type, damageType, isCrit);
     if (!text) return;
 

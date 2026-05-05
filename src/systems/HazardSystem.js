@@ -81,6 +81,17 @@ class HazardSystem {
         duration: 7000,
         density: 0.005,
         damageType: 'dot'
+      },
+      Volcanic: {
+        type: 'lava_pool',
+        color: 0xff2200,
+        alpha: 0.45,
+        radius: 35,
+        damage: 6,
+        interval: 1000,
+        duration: 12000,
+        density: 0.008,
+        damageType: 'burst'
       }
     };
   }

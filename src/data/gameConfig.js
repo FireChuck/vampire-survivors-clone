@@ -35,7 +35,7 @@ const GAME_CONFIG = {
   cameraZoom: 1.0,             // default zoom level
 
   // ── World / Map ──
-  worldWidth: 4000,
+  worldWidth: 6000,
   worldHeight: 4000,
   tileSize: 64,
 

@@ -127,7 +127,8 @@ class MetaProgression {
       },
       achievements: [],
       totalDamageDealt: 0,
-      totalBossKills: 0
+      totalBossKills: 0,
+      bestiary: {}
     };
   }
 

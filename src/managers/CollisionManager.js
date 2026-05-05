@@ -38,6 +38,7 @@ class CollisionManager {
       scene.score += data.xpValue * 10;
       scene.killCount++;
       scene._updateKillStreak();
+      if (scene._checkKillMilestone) scene._checkKillMilestone(scene.killCount);
       if (scene.audioManager) scene.audioManager.playEnemyDeath();
       if (scene.particleSystem) scene.particleSystem.emitDeath(data.x, data.y, data.color || 0xff4444, undefined, data.enemyType);
       if (scene.damageNumbers) scene.damageNumbers.show(data.x, data.y, data.xpValue, 'xp');
@@ -47,6 +48,12 @@ class CollisionManager {
       // Track boss kills for character unlock progression
       if (data.isBoss) {
         scene._bossKillsThisRun = (scene._bossKillsThisRun || 0) + 1;
+      }
+      // ComboSystem: multiplier-based kill chain
+      if (scene.comboSystem) scene.comboSystem.onEnemyKill(data);
+      // PetSystem: try pet drop from special enemies
+      if (scene.petSystem && (data.isBoss || data.enemyType === 'elite')) {
+        scene.petSystem.tryDrop(data.x, data.y, data.enemyType);
       }
     });
 

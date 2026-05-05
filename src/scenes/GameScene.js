@@ -160,6 +160,15 @@ class GameScene extends Phaser.Scene {
     // Environmental Hazards System
     this.hazardSystem = new HazardSystem(this);
 
+    // Bestiary System (enemy codex tracking)
+    this.bestiarySystem = new BestiarySystem(this);
+
+    // Combo System (multiplier-based kill chain)
+    this.comboSystem = new ComboSystem(this);
+
+    // Pet System (orbiting companions)
+    this.petSystem = new PetSystem(this);
+
     this.collisionManager = new CollisionManager(this);
     this.collisionManager.setupCollisions();
     this.collisionManager.setupEventListeners();
@@ -211,6 +220,10 @@ class GameScene extends Phaser.Scene {
     this.xpOrbs = [];
     this.gameOverTriggered = false;
 
+    // Pickup range indicator
+    this._pickupRangeGfx = this.add.graphics().setDepth(3);
+    this._pickupRangeVisible = false;
+
     // Batch rendering for enemies — single Graphics object instead of per-enemy
     this._enemyBatchGraphics = this.add.graphics().setDepth(5);
     Enemy.setBatchGraphics(this._enemyBatchGraphics);
@@ -242,6 +255,25 @@ class GameScene extends Phaser.Scene {
     if (this.input.keyboard) {
       this.input.keyboard.on('keydown-P', () => this._togglePause());
       this.input.keyboard.on('keydown-ESC', () => this._togglePause());
+      this.input.keyboard.on('keydown-R', () => {
+        if (this.isPaused && !this.gameOverTriggered) {
+          this.isPaused = false;
+          this.physics.world.resume();
+          this.time.resume();
+          this._closePauseMenu();
+          this.scene.stop('GameScene');
+          this.scene.start('GameScene', this._incomingData);
+        }
+      });
+      this.input.keyboard.on('keydown-T', () => {
+        this._pickupRangeVisible = !this._pickupRangeVisible;
+      });
+      this.input.keyboard.on('keydown-N', () => {
+        if (this.damageNumbers) this.damageNumbers.enabled = !this.damageNumbers.enabled;
+      });
+      this.input.keyboard.on('keydown-G', () => {
+        if (this.screenShake) this.screenShake.enabled = !this.screenShake.enabled;
+      });
       this.input.keyboard.on('keydown-N', () => {
         if (this.performanceOverlay) this.performanceOverlay.startBenchmark();
       });
@@ -432,6 +464,12 @@ class GameScene extends Phaser.Scene {
     // Environmental hazards
     this.hazardSystem.update(time, delta);
 
+    // Combo System update
+    if (this.comboSystem) this.comboSystem.update(delta);
+
+    // Pet System update
+    if (this.petSystem) this.petSystem.update(time, delta);
+
     // Update enemies
     const timeFreezeActive = this.abilitySystem && this.abilitySystem.isTimeFreezeActive();
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -493,6 +531,17 @@ class GameScene extends Phaser.Scene {
 
     // Batch render all enemies into single Graphics object
     this._renderEnemyBatch(delta);
+
+    // Pickup range indicator (toggle with T)
+    if (this._pickupRangeVisible && this.player && this.player.active) {
+      this._pickupRangeGfx.clear();
+      this._pickupRangeGfx.lineStyle(1, 0x44aaff, 0.4);
+      this._pickupRangeGfx.strokeCircle(this.player.x, this.player.y, this.player.pickupRange);
+      this._pickupRangeGfx.fillStyle(0x44aaff, 0.06);
+      this._pickupRangeGfx.fillCircle(this.player.x, this.player.y, this.player.pickupRange);
+    } else if (!this._pickupRangeVisible) {
+      this._pickupRangeGfx.clear();
+    }
 
     // FPS counter
     this._fpsFrames++;
@@ -717,11 +766,20 @@ class GameScene extends Phaser.Scene {
     const startY = sh * 0.35;
     const buttons = [
       { label: '▶ Resume', color: 0x44ff44, action: () => this._togglePause() },
+      { label: '📖 Bestiary', color: 0xcc88ff, action: () => { if (this.bestiarySystem) this.bestiarySystem.togglePanel(); } },
       { label: '🔊 Audio Controls', color: 0x4488ff, action: () => this._showAudioControls() },
       { label: '✨ Particle Quality', color: 0x44ffaa, action: () => this._showParticleQualityMenu() },
       { label: '📊 Benchmark', color: 0xffaa00, action: () => {
         if (this.performanceOverlay) this.performanceOverlay.startBenchmark();
         this._togglePause();
+      }},
+      { label: '🔄 Quick Restart (R)', color: 0xff8844, action: () => {
+        this.isPaused = false;
+        this.physics.world.resume();
+        this.time.resume();
+        this._closePauseMenu();
+        this.scene.stop('GameScene');
+        this.scene.start('GameScene', this._incomingData);
       }},
       { label: '🏠 Quit to Menu', color: 0xff4444, action: () => {
         this.isPaused = false;
@@ -976,6 +1034,22 @@ class GameScene extends Phaser.Scene {
   }
 
   // ── QoL: Kill Streak ──
+
+  // ── QoL: Kill Milestone Notifications ──
+
+  _checkKillMilestone(count) {
+    var milestones = [100, 500, 1000, 2500, 5000, 10000];
+    var prefix = '_killMilestone_';
+    for (var i = 0; i < milestones.length; i++) {
+      var m = milestones[i];
+      if (count === m && !this[prefix + m]) {
+        this[prefix + m] = true;
+        if (this.achievementToast) {
+          this.achievementToast.show('💀 Kill Milestone: ' + m + ' enemies!', 4000);
+        }
+      }
+    }
+  }
 
   _updateKillStreak() {
     const now = this.spawnManager.gameTime;

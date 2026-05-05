@@ -4,16 +4,18 @@
  */
 
 /**
- * 5 biome zones + 1 dungeon overlay covering the world map.
- * Coordinates match GAME_CONFIG.worldWidth/worldHeight (4000×4000).
+ * 6 biome zones + 1 dungeon overlay covering the world map.
+ * Coordinates match GAME_CONFIG.worldWidth/worldHeight (6000×4000).
  * Player starts at center (2000, 2000) — Catacombs/Forest border.
  *
  * Layout:
  *   Top-left:     Graveyard (0,0 → 2000,2000)
- *   Top-right:    Dark Forest (2000,0 → 4000,2000)
+ *   Top-mid:      Dark Forest (2000,0 → 4000,2000)
+ *   Top-right:    Volcanic (4000,0 → 6000,2000)
  *   Bot-left-top: Blood Moor (0,2000 → 2000,3000)
  *   Bot-left-bot: Cursed Swamp (0,3000 → 2000,4000)
- *   Bot-right:    Catacombs (2000,2000 → 4000,4000)
+ *   Bot-mid-right:Catacombs (2000,2000 → 4000,4000)
+ *   Bot-right:    Volcanic (4000,2000 → 6000,4000)
  *   Overlay:      Dungeon (2200,2200 → 2600,2600) inside Catacombs
  */
 var BIOME_ZONES = [
@@ -74,6 +76,16 @@ var BIOME_ZONES = [
     groundTile: 'stone_floor',
     ambientLight: 0.45,
   },
+  {
+    name: 'Volcanic',
+    x: 4000, y: 0,
+    width: 2000, height: 4000,
+    bgColor: 0x2e0a0a,
+    groundColor: 0x1a0808,
+    groundTile: 'volcanic_rock',
+    ambientLight: 0.7,
+    isVolcanic: true,
+  },
 ];
 
 /**
@@ -119,6 +131,13 @@ var BIOME_DECORATIONS = {
     { type: 'blood_stain', width: 32, height: 32, color: 0x7f1d1d, density: 0.006, alpha: 0.35 },
     { type: 'skull',       width: 14, height: 16, color: 0xe7e5e4, density: 0.004 },
   ],
+  Volcanic: [
+    { type: 'lava_crack',  width: 60, height: 8,  color: 0xff4400, density: 0.01, alpha: 0.6, emissive: true },
+    { type: 'lava_pool',   width: 48, height: 48, color: 0xff2200, density: 0.005, alpha: 0.45 },
+    { type: 'obsidian',    width: 28, height: 24, color: 0x1a1a2e, density: 0.007 },
+    { type: 'ember_vent',  width: 16, height: 16, color: 0xff6600, density: 0.004, emissive: true },
+    { type: 'ash_pile',    width: 36, height: 20, color: 0x444444, density: 0.006 },
+  ],
 };
 
 /**
@@ -132,6 +151,7 @@ var BIOME_ENEMY_AFFINITY = {
   CursedSwamp: ['slime', 'ghost', 'tank'],
   Catacombs:  ['golem', 'ghost', 'demon'],
   Dungeon:    ['golem', 'demon'],
+  Volcanic:   ['fire_elemental', 'lava_golem', 'demon'],
 };
 
 /**

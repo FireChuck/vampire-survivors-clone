@@ -339,6 +339,10 @@ class SpawnManager {
       enemy = new TankEnemy(scene, x, y);
     } else if (typeKey === 'necromancer') {
       enemy = new NecromancerEnemy(scene, x, y);
+    } else if (typeKey === 'fire_elemental') {
+      enemy = new FireElementalEnemy(scene, x, y);
+    } else if (typeKey === 'lava_golem') {
+      enemy = new LavaGolemEnemy(scene, x, y);
     } else {
       enemy = new Enemy(scene, x, y, typeKey);
     }

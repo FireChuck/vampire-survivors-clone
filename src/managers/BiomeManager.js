@@ -26,9 +26,13 @@ class BiomeManager {
     this._swampPoisonPools = [];
     this._swampPoisonTimer = 0;
     this._swampPoisonInterval = 2000; // damage every 2s
+    this._volcanicEmbers = [];
+    this._volcanicGlowOverlay = null;
+    this._volcanicCrackGraphics = null;
     this._BIOME_EMOJI = {
       Graveyard: '⚰', Dark_Forest: '🌲', Blood_Moor: '🩸',
-      Catacombs: '💀', Dungeon: '🏚', Cursed_Swamp: '☠️'
+      Catacombs: '💀', Dungeon: '🏚', Cursed_Swamp: '☠️',
+      Volcanic: '🌋'
     };
     this._initBiomes();
     this._drawGround();
@@ -56,6 +60,7 @@ class BiomeManager {
     this._cullDistantDecorations();
     this._updateTorchFlicker();
     this._updateSwampEffects();
+    this._updateVolcanicEffects();
   }
 
   _updateBiome() {
@@ -784,6 +789,79 @@ class BiomeManager {
         poolData.active = false;
       }
     });
+  }
+
+  // ── Volcanic Ambient Effects ──
+
+  _updateVolcanicEffects() {
+    var scene = this.scene;
+    var player = scene.player;
+    if (!player || !player.active) return;
+
+    var inVolcanic = this._currentBiome && this._currentBiome.isVolcanic;
+
+    if (inVolcanic) {
+      // Red/orange glow overlay
+      if (!this._volcanicGlowOverlay) {
+        var sw = scene.scale.width;
+        var sh = scene.scale.height;
+        var glowGfx = scene.make.graphics({ x: 0, y: 0, add: false });
+        var cx = sw / 2;
+        var cy = sh / 2;
+        var maxR = Math.sqrt(cx * cx + cy * cy);
+        for (var r = maxR; r > 0; r -= 8) {
+          var t = 1 - (r / maxR);
+          var alpha = t < 0.5 ? 0 : (t - 0.5) * 2 * 0.15;
+          glowGfx.fillStyle(0xff3300, alpha);
+          glowGfx.fillCircle(cx, cy, r);
+        }
+        var glowTex = glowGfx.generateTexture('volcanic_glow_tex', sw, sh);
+        glowGfx.destroy();
+        this._volcanicGlowOverlay = scene.add.image(sw / 2, sh / 2, 'volcanic_glow_tex')
+          .setScrollFactor(0).setDepth(47).setAlpha(0).setBlendMode(Phaser.BlendModes.ADD);
+      }
+      // Pulse glow
+      var glowPulse = 0.3 + Math.sin(Date.now() / 2000) * 0.1;
+      if (this._volcanicGlowOverlay.alpha < glowPulse) {
+        this._volcanicGlowOverlay.setAlpha(Math.min(glowPulse, this._volcanicGlowOverlay.alpha + 0.01));
+      }
+
+      // Spawn ember particles
+      if (this._volcanicEmbers.length < 30 && Math.random() < 0.15) {
+        var ex = player.x + (Math.random() - 0.5) * scene.scale.width;
+        var ey = player.y + (Math.random() - 0.5) * scene.scale.height;
+        var ember = scene.add.graphics();
+        ember.fillStyle(0xff6600, 0.8);
+        ember.fillCircle(0, 0, 2 + Math.random() * 2);
+        ember.setPosition(ex, ey);
+        ember.setDepth(5);
+        var emberData = { gfx: ember, vy: -20 - Math.random() * 30, vx: (Math.random() - 0.5) * 15, life: 2000 + Math.random() * 2000, age: 0 };
+        this._volcanicEmbers.push(emberData);
+      }
+    } else {
+      // Fade out glow
+      if (this._volcanicGlowOverlay && this._volcanicGlowOverlay.alpha > 0) {
+        this._volcanicGlowOverlay.setAlpha(Math.max(0, this._volcanicGlowOverlay.alpha - 0.03));
+        if (this._volcanicGlowOverlay.alpha <= 0) {
+          this._volcanicGlowOverlay.destroy();
+          this._volcanicGlowOverlay = null;
+        }
+      }
+    }
+
+    // Update embers
+    for (var ei = this._volcanicEmbers.length - 1; ei >= 0; ei--) {
+      var e = this._volcanicEmbers[ei];
+      e.age += 16;
+      if (e.age >= e.life) {
+        e.gfx.destroy();
+        this._volcanicEmbers.splice(ei, 1);
+        continue;
+      }
+      e.gfx.x += e.vx * 0.016;
+      e.gfx.y += e.vy * 0.016;
+      e.gfx.setAlpha(1 - (e.age / e.life));
+    }
   }
 
   // ── Ground Grid ──

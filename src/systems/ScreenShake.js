@@ -6,6 +6,7 @@ class ScreenShake {
   constructor(scene) {
     this.scene = scene;
     this._shaking = false;
+    this.enabled = true;
 
     // Intensity presets: { duration (ms), intensity (0-1) }
     this.presets = {
@@ -32,6 +33,7 @@ class ScreenShake {
    * @param {object} [override] - optional { duration, intensity }
    */
   shake(presetName, override) {
+    if (!this.enabled) return;
     const p = override || this.presets[presetName];
     if (!p) return;
 
