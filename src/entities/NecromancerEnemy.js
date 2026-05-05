@@ -33,8 +33,8 @@ class NecromancerEnemy extends Phaser.Physics.Arcade.Sprite {
     this._graphics = null; // no individual graphics — batch rendering
   }
 
-  _drawVisual() {
-    const gfx = Enemy.getBatchGraphics();
+  _drawVisual(gfx) {
+    if (!gfx) gfx = Enemy.getBatchGraphics();
     if (!gfx) return;
     const px = this.x;
     const py = this.y;
@@ -157,8 +157,8 @@ class NecromancerEnemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  _drawHPBar() {
-    const gfx = Enemy.getBatchGraphics();
+  _drawHPBar(gfx) {
+    if (!gfx) gfx = Enemy.getBatchGraphics();
     if (!gfx) return;
     const barW = 32;
     const barH = 3;
@@ -283,8 +283,8 @@ class SkeletonMinion extends Phaser.Physics.Arcade.Sprite {
     this._graphics = null;
   }
 
-  _drawVisual() {
-    const gfx = Enemy.getBatchGraphics();
+  _drawVisual(gfx) {
+    if (!gfx) gfx = Enemy.getBatchGraphics();
     if (!gfx) return;
     const px = this.x;
     const py = this.y;
