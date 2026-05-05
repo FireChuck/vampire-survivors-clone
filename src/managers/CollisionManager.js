@@ -199,7 +199,9 @@ class CollisionManager {
         itemsCollected: scene._itemsCollected || 0,
         dps: scene.getDPS ? scene.getDPS() : 0,
         totalDamageDealt: scene._totalDamageDealt || 0,
-        bossKills: scene._bossKillsThisRun || 0
+        bossKills: scene._bossKillsThisRun || 0,
+        damageTaken: scene._totalDamageTaken || 0,
+        abilitiesUsed: scene._abilitiesUsedCount || 0
       };
 
       const achievementsBefore = [...scene.meta.data.achievements];

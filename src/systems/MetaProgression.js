@@ -57,11 +57,17 @@ class MetaProgression {
       unlockedWeapons: 'object',
       permanentUpgrades: 'object',
       achievements: 'object',
-      totalDamageDealt: 'number'
+      totalDamageDealt: 'number',
+      totalBossKills: 'number'
     };
 
     for (const [key, type] of Object.entries(required)) {
       if (!(key in data)) {
+        // Auto-migrate missing fields with defaults (backward compat)
+        if (key === 'totalBossKills') {
+          data.totalBossKills = 0;
+          continue;
+        }
         errors.push(`Missing field: ${key}`);
       } else if (typeof data[key] !== type) {
         errors.push(`Wrong type for ${key}: expected ${type}, got ${typeof data[key]}`);
@@ -120,7 +126,8 @@ class MetaProgression {
         speedBonus: 0
       },
       achievements: [],
-      totalDamageDealt: 0
+      totalDamageDealt: 0,
+      totalBossKills: 0
     };
   }
 
@@ -160,6 +167,10 @@ class MetaProgression {
     if (stats.totalDamageDealt) {
       this.data.totalDamageDealt += stats.totalDamageDealt;
     }
+    // Track boss kills
+    if (stats.bossKills) {
+      this.recordBossKill(stats.bossKills);
+    }
 
     if (stats.score > this.data.highScore) {
       this.data.highScore = stats.score;
@@ -176,11 +187,15 @@ class MetaProgression {
     this._checkAchievements(stats);
     const newAchievements = this.data.achievements.filter(a => !achievementsBefore.includes(a));
 
+    // Check character unlocks
+    const charUnlocks = this.checkCharacterUnlocks();
+
     this._save();
 
     return {
       wasHighScore: stats.score >= this.data.highScore && stats.score > 0,
-      newAchievements: newAchievements
+      newAchievements: newAchievements,
+      newCharacterUnlocks: charUnlocks.unlocked
     };
   }
 
@@ -267,6 +282,59 @@ class MetaProgression {
       permanentUpgrades: { ...this.data.permanentUpgrades },
       loadResult: this._loadResult
     };
+  }
+
+  // Record a boss kill for unlock progression
+  recordBossKill(count = 1) {
+    if (!this.data.totalBossKills) this.data.totalBossKills = 0;
+    this.data.totalBossKills += count;
+    this._save();
+  }
+
+  getTotalBossKills() {
+    return this.data.totalBossKills || 0;
+  }
+
+  /**
+   * Check and unlock characters based on meta-progression stats.
+   * Call this after recordRun() to auto-unlock characters.
+   * @returns {{ unlocked: string[], alreadyUnlocked: string[] }}
+   */
+  checkCharacterUnlocks() {
+    const unlocked = [];
+    const alreadyUnlocked = [];
+
+    // Mage: Reach Level 20 with any character
+    if (this.data.bestLevel >= 20) {
+      if (!this.data.unlockedCharacters.includes('mage')) {
+        this.unlockCharacter('mage');
+        unlocked.push('mage');
+      } else {
+        alreadyUnlocked.push('mage');
+      }
+    }
+
+    // Barbarian: Defeat 5 bosses total
+    if ((this.data.totalBossKills || 0) >= 5) {
+      if (!this.data.unlockedCharacters.includes('barbarian')) {
+        this.unlockCharacter('barbarian');
+        unlocked.push('barbarian');
+      } else {
+        alreadyUnlocked.push('barbarian');
+      }
+    }
+
+    // Rogue: Survive 15 minutes (900 seconds)
+    if (this.data.bestTime >= 900) {
+      if (!this.data.unlockedCharacters.includes('rogue')) {
+        this.unlockCharacter('rogue');
+        unlocked.push('rogue');
+      } else {
+        alreadyUnlocked.push('rogue');
+      }
+    }
+
+    return { unlocked, alreadyUnlocked };
   }
 
   // Reset all progress

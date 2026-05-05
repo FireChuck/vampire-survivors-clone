@@ -56,7 +56,7 @@ class WeaponSystem {
         p._weapon = weapon;
         p._piercing = weapon.piercing || 0;
         p._hits = 0;
-        p._damage = weapon.damage * (this.player.damageMultiplier || this.player.stats?.damageMultiplier || 1);
+        p._damage = weapon.damage * (this.player.damageMultiplier || this.player.stats?.damageMultiplier || 1) * (this.player.abilityDamageMultiplier || 1);
 
         this.projectiles.push(p);
     }

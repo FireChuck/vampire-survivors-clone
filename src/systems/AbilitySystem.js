@@ -100,6 +100,11 @@ class AbilitySystem {
 
     this.cooldowns[slotIdx] = effectiveCooldown;
 
+    // QoL T4: Track abilities used
+    if (this.scene && this.scene._abilitiesUsedCount !== undefined) {
+      this.scene._abilitiesUsedCount++;
+    }
+
     // Execute ability effect
     switch (abilityId) {
       case 'dash': this._activateDash(type, slotIdx); break;
@@ -285,7 +290,7 @@ class AbilitySystem {
       });
 
       // Deal damage to enemies in radius
-      const damage = type.meteorDamage * this.player.stats.damageMultiplier;
+      const damage = type.meteorDamage * this.player.stats.damageMultiplier * (this.player.abilityDamageMultiplier || 1);
       for (const enemy of this.scene.enemies) {
         if (!enemy || !enemy.active) continue;
         const dx = enemy.x - x;

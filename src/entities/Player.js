@@ -20,6 +20,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.pickupRange = 60;
     this.damage = 10;
     this.attackSpeed = 1.0;
+    this.abilityDamageMultiplier = 1.0;
+    this.critChance = 0.05;
 
     // Nested stats for UpgradeSystem compatibility
     this.stats = {
@@ -92,6 +94,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const armorMult = 1 - Math.min(this.stats.armor, 0.75); // cap at 75% reduction
     const reduced = Math.max(1, Math.floor(amount * armorMult));
     this.hp = Math.max(0, this.hp - reduced);
+
+    // QoL T4: Track damage taken for extended stats
+    if (this.scene._totalDamageTaken !== undefined) {
+      this.scene._totalDamageTaken += reduced;
+    }
 
     // Flash effect
     this.setTintFill(0xff0000);

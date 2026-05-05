@@ -13,40 +13,40 @@ const CHARACTERS = [
     locked: false
   },
   {
-    id: 'berserker',
-    name: 'Berserker',
-    emoji: '⚔️',
-    color: 0xe94560,
-    highlightColor: 0xff6688,
-    description: 'High damage, slow speed, starts with Axe',
-    stats: { maxHp: 130, speed: 160, damage: 15, pickupRange: 50, attackSpeed: 0.8 },
-    startWeapon: 'axe',
-    locked: true,
-    unlockCondition: 'Kill 500 enemies in a single run'
-  },
-  {
-    id: 'swift',
-    name: 'Shadow Dancer',
-    emoji: '💨',
-    color: 0x4ecdc4,
-    highlightColor: 0x7eeee7,
-    description: 'Fast & agile, starts with Throwing Knife',
-    stats: { maxHp: 80, speed: 260, damage: 8, pickupRange: 80, attackSpeed: 1.3 },
-    startWeapon: 'knife',
-    locked: true,
-    unlockCondition: 'Survive 15 minutes'
-  },
-  {
-    id: 'warlock',
-    name: 'Warlock',
+    id: 'mage',
+    name: 'Mage',
     emoji: '🔮',
     color: 0x9944ff,
     highlightColor: 0xbb77ff,
-    description: 'Magic specialist, starts with Holy Water',
-    stats: { maxHp: 90, speed: 180, damage: 12, pickupRange: 70, attackSpeed: 1.0 },
-    startWeapon: 'holyWater',
+    description: '+30% Ability Damage, -20% Max HP, starts with Orbit',
+    stats: { maxHp: 80, speed: 200, damage: 10, pickupRange: 60, attackSpeed: 1.0, abilityDamageMultiplier: 1.3 },
+    startWeapon: 'holyAura',
     locked: true,
-    unlockCondition: 'Reach Level 20'
+    unlockCondition: 'Reach Level 20 with Apprentice'
+  },
+  {
+    id: 'barbarian',
+    name: 'Barbarian',
+    emoji: '⚔️',
+    color: 0xe94560,
+    highlightColor: 0xff6688,
+    description: '+50% Max HP, +20% Pickup, +10% Speed, starts with Wave',
+    stats: { maxHp: 150, speed: 220, damage: 10, pickupRange: 72, attackSpeed: 1.0 },
+    startWeapon: 'whip',
+    locked: true,
+    unlockCondition: 'Defeat 5 Bosses total'
+  },
+  {
+    id: 'rogue',
+    name: 'Rogue',
+    emoji: '🗡️',
+    color: 0x4ecdc4,
+    highlightColor: 0x7eeee7,
+    description: '+30% Speed, +25% Crit Chance, starts with Dagger',
+    stats: { maxHp: 100, speed: 260, damage: 10, pickupRange: 60, attackSpeed: 1.0, critChance: 0.30 },
+    startWeapon: 'knife',
+    locked: true,
+    unlockCondition: 'Survive 15 minutes'
   }
 ];
 
@@ -74,14 +74,14 @@ class CharacterSelectScene extends Phaser.Scene {
     this._selectedIndex = 0;
 
     const cardWidth = 160;
-    const cardHeight = 220;
+    const cardHeight = 260;
     const gap = 16;
     const totalWidth = CHARACTERS.length * cardWidth + (CHARACTERS.length - 1) * gap;
     const startX = cx - totalWidth / 2 + cardWidth / 2;
 
     CHARACTERS.forEach((char, i) => {
       const x = startX + i * (cardWidth + gap);
-      const y = cy - 20;
+      const y = cy - 30;
       const isUnlocked = unlockedChars.includes(char.id);
 
       // Card background
@@ -90,46 +90,67 @@ class CharacterSelectScene extends Phaser.Scene {
         .setDepth(5);
 
       // Emoji
-      this.add.text(x, y - 70, char.emoji, {
+      this.add.text(x, y - 95, char.emoji, {
         fontSize: '40px'
       }).setOrigin(0.5).setDepth(10);
 
       // Name
-      this.add.text(x, y - 30, char.name, {
-        fontSize: '14px', fontFamily: 'Arial, sans-serif', color: isUnlocked ? '#ffffff' : '#666666',
+      this.add.text(x, y - 60, char.name, {
+        fontSize: '15px', fontFamily: 'Arial, sans-serif', color: isUnlocked ? '#ffffff' : '#666666',
         fontStyle: 'bold', stroke: '#000', strokeThickness: 2
       }).setOrigin(0.5).setDepth(10);
 
-      // Stats
-      const statsText = isUnlocked
-        ? `HP:${char.stats.maxHp}  SPD:${char.stats.speed}\nDMG:${char.stats.damage}  RNG:${char.stats.pickupRange}`
-        : '🔒 LOCKED';
-      this.add.text(x, y + 10, statsText, {
-        fontSize: '10px', fontFamily: 'Arial, sans-serif', color: isUnlocked ? '#aaaaaa' : '#555555',
-        stroke: '#000', strokeThickness: 1, align: 'center', lineSpacing: 4
-      }).setOrigin(0.5).setDepth(10);
+      if (isUnlocked) {
+        // Stats block
+        const statLines = [
+          `❤️ HP: ${char.stats.maxHp}`,
+          `👟 Speed: ${char.stats.speed}`,
+          `⚔️ DMG: ${char.stats.damage}`,
+          `📦 Pickup: ${char.stats.pickupRange}`,
+          `⏱️ ATK SPD: ${char.stats.attackSpeed}x`
+        ];
+        if (char.stats.abilityDamageMultiplier) {
+          statLines.push(`✨ Ability DMG: +${Math.round((char.stats.abilityDamageMultiplier - 1) * 100)}%`);
+        }
+        if (char.stats.critChance) {
+          statLines.push(`💥 Crit: ${Math.round(char.stats.critChance * 100)}%`);
+        }
+        const statsText = statLines.join('\n');
+        this.add.text(x, y - 10, statsText, {
+          fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#aaaaaa',
+          stroke: '#000', strokeThickness: 1, align: 'left', lineSpacing: 3
+        }).setOrigin(0.5).setDepth(10);
 
-      // Description
-      this.add.text(x, y + 55, char.description, {
-        fontSize: '9px', fontFamily: 'Arial, sans-serif', color: isUnlocked ? '#888888' : '#444444',
-        stroke: '#000', strokeThickness: 1, align: 'center'
-      }).setOrigin(0.5).setDepth(10).setWordWrapWidth(140);
-
-      // Unlock condition
-      if (!isUnlocked) {
-        this.add.text(x, y + 80, char.unlockCondition, {
-          fontSize: '8px', fontFamily: 'Arial, sans-serif', color: '#e94560',
+        // Description
+        this.add.text(x, y + 50, char.description, {
+          fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#888888',
           stroke: '#000', strokeThickness: 1, align: 'center'
         }).setOrigin(0.5).setDepth(10).setWordWrapWidth(140);
-      }
 
-      // Starting weapon
-      if (isUnlocked) {
+        // Starting weapon
         const weaponName = WEAPON_TYPES[char.startWeapon]?.name || char.startWeapon;
-        this.add.text(x, y + 80, `Starts with: ${weaponName}`, {
-          fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
+        this.add.text(x, y + 85, `🗡️ ${weaponName}`, {
+          fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
           stroke: '#000', strokeThickness: 1
         }).setOrigin(0.5).setDepth(10);
+      } else {
+        // Locked display
+        this.add.text(x, y - 20, '🔒 LOCKED', {
+          fontSize: '16px', fontFamily: 'Arial, sans-serif', color: '#555555',
+          stroke: '#000', strokeThickness: 1
+        }).setOrigin(0.5).setDepth(10);
+
+        // Description (dimmed)
+        this.add.text(x, y + 20, char.description, {
+          fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#444444',
+          stroke: '#000', strokeThickness: 1, align: 'center'
+        }).setOrigin(0.5).setDepth(10).setWordWrapWidth(140);
+
+        // Unlock condition
+        this.add.text(x, y + 60, '🔓 ' + char.unlockCondition, {
+          fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#e94560',
+          stroke: '#000', strokeThickness: 1, align: 'center'
+        }).setOrigin(0.5).setDepth(10).setWordWrapWidth(140);
       }
 
       // Selection indicator (hidden initially)
@@ -141,10 +162,8 @@ class CharacterSelectScene extends Phaser.Scene {
         cardBg.setInteractive({ useHandCursor: true });
 
         cardBg.on('pointerover', () => {
-          if (isUnlocked) {
-            cardBg.setFillStyle(0x2a2a4e);
-            this.tweens.add({ targets: cardBg, scaleX: 1.05, scaleY: 1.05, duration: 100 });
-          }
+          cardBg.setFillStyle(0x2a2a4e);
+          this.tweens.add({ targets: cardBg, scaleX: 1.05, scaleY: 1.05, duration: 100 });
         });
 
         cardBg.on('pointerout', () => {
@@ -167,10 +186,10 @@ class CharacterSelectScene extends Phaser.Scene {
     this._selectCharacter(firstUnlocked >= 0 ? firstUnlocked : 0);
 
     // Start button
-    this._startBtn = this.add.rectangle(cx, cy + 160, 200, 50, 0x4ecdc4)
+    this._startBtn = this.add.rectangle(cx, cy + 170, 200, 50, 0x4ecdc4)
       .setInteractive({ useHandCursor: true }).setDepth(10);
 
-    this._startBtnText = this.add.text(cx, cy + 160, '▶ START', {
+    this._startBtnText = this.add.text(cx, cy + 170, '▶ START', {
       fontSize: '22px', fontFamily: 'Arial, sans-serif', color: '#fff', fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(11);
 
@@ -187,10 +206,10 @@ class CharacterSelectScene extends Phaser.Scene {
     });
 
     // Back button
-    const backBtn = this.add.rectangle(cx - 130, cy + 160, 100, 50, 0x555555)
+    const backBtn = this.add.rectangle(cx - 130, cy + 170, 100, 50, 0x555555)
       .setInteractive({ useHandCursor: true }).setDepth(10);
 
-    this.add.text(cx - 130, cy + 160, '← Back', {
+    this.add.text(cx - 130, cy + 170, '← Back', {
       fontSize: '16px', fontFamily: 'Arial, sans-serif', color: '#ccc'
     }).setOrigin(0.5).setDepth(11);
 
