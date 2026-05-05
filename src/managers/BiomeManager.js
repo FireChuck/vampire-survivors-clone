@@ -621,6 +621,140 @@ class BiomeManager {
     return 1.0;
   }
 
+  // ── Swamp Fog Overlay & Poison Pools ──
+
+  _updateSwampEffects() {
+    var scene = this.scene;
+    var player = scene.player;
+    if (!player || !player.active) return;
+
+    var inSwamp = this._currentBiome && this._currentBiome.isSwamp;
+
+    // Fog overlay
+    if (inSwamp) {
+      if (!this._swampFogOverlay) {
+        var sw = scene.scale.width;
+        var sh = scene.scale.height;
+        // Create fog texture
+        var fogGfx = scene.make.graphics({ x: 0, y: 0, add: false });
+        var cx = sw / 2;
+        var cy = sh / 2;
+        var maxR = Math.sqrt(cx * cx + cy * cy);
+        for (var r = maxR; r > 0; r -= 6) {
+          var t = 1 - (r / maxR);
+          var alpha = t < 0.4 ? 0 : (t - 0.4) * 1.2 * 0.35;
+          fogGfx.fillStyle(0x334422, alpha);
+          fogGfx.fillCircle(cx + (Math.random() - 0.5) * 2, cy + (Math.random() - 0.5) * 2, r);
+        }
+        var fogTex = fogGfx.generateTexture('swamp_fog_tex', sw, sh);
+        fogGfx.destroy();
+
+        this._swampFogOverlay = scene.add.image(sw / 2, sh / 2, 'swamp_fog_tex')
+          .setScrollFactor(0).setDepth(47).setAlpha(0).setBlendMode(Phaser.BlendModes.MULTIPLY);
+      }
+      // Fade in fog
+      if (this._swampFogOverlay.alpha < 1) {
+        this._swampFogOverlay.setAlpha(Math.min(1, this._swampFogOverlay.alpha + 0.02));
+      }
+      // Drift effect
+      this._swampFogOverlay.x = sw / 2 + Math.sin(Date.now() / 3000) * 8;
+      this._swampFogOverlay.y = sh / 2 + Math.cos(Date.now() / 4000) * 5;
+    } else {
+      if (this._swampFogOverlay && this._swampFogOverlay.alpha > 0) {
+        this._swampFogOverlay.setAlpha(Math.max(0, this._swampFogOverlay.alpha - 0.03));
+        if (this._swampFogOverlay.alpha <= 0) {
+          this._swampFogOverlay.destroy();
+          this._swampFogOverlay = null;
+        }
+      }
+      // Clean up poison pools when leaving swamp
+      if (this._swampPoisonPools.length > 0) {
+        for (var i = 0; i < this._swampPoisonPools.length; i++) {
+          if (this._swampPoisonPools[i].gfx && this._swampPoisonPools[i].gfx.active) {
+            this._swampPoisonPools[i].gfx.destroy();
+          }
+        }
+        this._swampPoisonPools = [];
+      }
+      return;
+    }
+
+    // Spawn poison pools around player periodically
+    this._swampPoisonTimer += 16; // ~60fps
+    if (this._swampPoisonTimer > 3000 && this._swampPoisonPools.length < 5) {
+      this._swampPoisonTimer = 0;
+      this._spawnPoisonPool();
+    }
+
+    // Check player standing in poison pools
+    for (var pi = 0; pi < this._swampPoisonPools.length; pi++) {
+      var pool = this._swampPoisonPools[pi];
+      if (!pool.active) continue;
+      var pdx = player.x - pool.x;
+      var pdy = player.y - pool.y;
+      if (pdx * pdx + pdy * pdy < pool.radius * pool.radius) {
+        // Player in poison — damage tick
+        if (!pool._lastDamageTime || Date.now() - pool._lastDamageTime > this._swampPoisonInterval) {
+          pool._lastDamageTime = Date.now();
+          player.takeDamage(3); // Small poison damage
+          if (scene.hud) scene.hud.updateHP(player.hp, player.maxHp);
+          // Visual feedback: green flash
+          var poisonFlash = scene.add.graphics();
+          poisonFlash.fillStyle(0x44aa22, 0.3);
+          poisonFlash.fillCircle(player.x, player.y, 20);
+          poisonFlash.setDepth(25);
+          scene.tweens.add({
+            targets: poisonFlash,
+            alpha: 0,
+            duration: 400,
+            onComplete: function() { this.destroy(); }.bind(poisonFlash)
+          });
+        }
+      }
+    }
+  }
+
+  _spawnPoisonPool() {
+    var scene = this.scene;
+    var px = scene.player.x + (Math.random() - 0.5) * 400;
+    var py = scene.player.y + (Math.random() - 0.5) * 300;
+    var radius = 30 + Math.random() * 20;
+
+    var pool = scene.add.graphics();
+    pool.fillStyle(0x445522, 0.35);
+    pool.fillEllipse(px, py, radius * 2, radius * 1.4);
+    pool.fillStyle(0x668833, 0.15);
+    pool.fillEllipse(px, py - 2, radius * 1.4, radius);
+    // Bubbles
+    for (var b = 0; b < 3; b++) {
+      var bx = px + (Math.random() - 0.5) * radius;
+      var by = py + (Math.random() - 0.5) * radius * 0.5;
+      pool.fillStyle(0x77aa44, 0.3);
+      pool.fillCircle(bx, by, 2 + Math.random() * 3);
+    }
+    pool.setDepth(1);
+
+    var poolData = {
+      gfx: pool, x: px, y: py, radius: radius,
+      active: true, _lastDamageTime: 0,
+      _spawnTime: Date.now(), _lifetime: 8000 + Math.random() * 4000
+    };
+    this._swampPoisonPools.push(poolData);
+
+    // Fade out and remove after lifetime
+    scene.tweens.add({
+      targets: pool,
+      alpha: 0,
+      duration: 2000,
+      delay: poolData._lifetime,
+      ease: 'Sine.easeIn',
+      onComplete: function() {
+        pool.destroy();
+        poolData.active = false;
+      }
+    });
+  }
+
   // ── Ground Grid ──
 
   _drawGround() {

@@ -84,12 +84,19 @@ class SpawnManager {
 
     ws.bossWarningTimer += delta;
 
-    // Pulsing warning text
+    // Pulsing warning text + sound
     if (!ws.bossWarningShown) {
       ws.bossWarningShown = true;
-      scene._bossWarningText.setText('⚠ BOSS INCOMING ⚠');
+
+      // Determine boss name for warning
+      var bossTypes = ['Necromancer', 'Dragon', 'Giant'];
+      var nextBossName = bossTypes[ws.bossRotationIndex % bossTypes.length];
+      scene._bossWarningText.setText('⚠ ' + nextBossName.toUpperCase() + ' INCOMING ⚠');
       scene._bossWarningText.setAlpha(1);
       scene._bossWarningText.setScale(1);
+
+      // Play boss warning sound
+      if (scene.audioManager) scene.audioManager.playBossWarning();
 
       // Pulsing animation (repeating)
       scene.tweens.killTweensOf(scene._bossWarningText);
@@ -102,6 +109,18 @@ class SpawnManager {
         yoyo: true,
         repeat: Math.floor(WARNING_DURATION / 800),
         ease: 'Sine.easeInOut'
+      });
+
+      // Red screen flash on first warning
+      var flash = scene.add.rectangle(
+        scene.scale.width / 2, scene.scale.height / 2,
+        scene.scale.width, scene.scale.height, 0xff0000, 0.15
+      ).setScrollFactor(0).setDepth(100);
+      scene.tweens.add({
+        targets: flash,
+        alpha: 0,
+        duration: 1500,
+        onComplete: function() { flash.destroy(); }
       });
     }
 
@@ -223,6 +242,8 @@ class SpawnManager {
     var enemy;
     if (typeKey === 'teleporter') {
       enemy = new TeleporterEnemy(scene, x, y);
+    } else if (typeKey === 'tank') {
+      enemy = new TankEnemy(scene, x, y);
     } else {
       enemy = new Enemy(scene, x, y, typeKey);
     }
@@ -368,6 +389,7 @@ class SpawnManager {
   _updateDLCEnemySpawning(delta) {
     this._dlcEnemySpawnTimers.summoner += delta;
     this._dlcEnemySpawnTimers.exploder += delta;
+    this._dlcEnemySpawnTimers.tank += delta;
 
     if (this.gameTime > 60000 && this._dlcEnemySpawnTimers.exploder > 8000) {
       this._dlcEnemySpawnTimers.exploder = 0;
@@ -376,6 +398,11 @@ class SpawnManager {
     if (this.gameTime > 120000 && this._dlcEnemySpawnTimers.summoner > 15000) {
       this._dlcEnemySpawnTimers.summoner = 0;
       if (Math.random() < 0.3) this._spawnDLCEnemy('summoner');
+    }
+    // Tank: rare spawn after 5 minutes
+    if (this.gameTime > 300000 && this._dlcEnemySpawnTimers.tank > 25000) {
+      this._dlcEnemySpawnTimers.tank = 0;
+      if (Math.random() < 0.2) this._spawnDLCEnemy('tank');
     }
   }
 
@@ -393,6 +420,8 @@ class SpawnManager {
       enemy = new SummonerEnemy(scene, x, y);
     } else if (type === 'exploder') {
       enemy = new ExploderEnemy(scene, x, y);
+    } else if (type === 'tank') {
+      enemy = new TankEnemy(scene, x, y);
     }
     if (!enemy) return;
 
@@ -402,6 +431,11 @@ class SpawnManager {
 
     scene.enemyGroup.add(enemy);
     scene.enemies.push(enemy);
+
+    // Tank gets screen-edge indicator
+    if (type === 'tank') {
+      scene.screenEdgeIndicators.addIndicator(enemy, 'boss');
+    }
   }
 
   // ── XP Orb Spawning ──

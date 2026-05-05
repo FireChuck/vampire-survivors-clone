@@ -125,6 +125,35 @@ class WeaponManager {
       return;
     }
 
+    // Lightning Chain: uses LightningChainProjectile class
+    if (weaponKey === 'lightning_chain') {
+      const target = this.findNearestEnemy(type.range * 1.5);
+      let direction;
+      if (target) {
+        const dx = target.x - px;
+        const dy = target.y - py;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        direction = { x: dx / dist, y: dy / dist };
+      } else {
+        direction = { x: 1, y: 0 };
+      }
+      const bounces = type.bounces + Math.floor((level - 1) / 2); // +1 bounce every 2 levels
+      const stats = {
+        damage: type.damage * this.player.stats.damageMultiplier,
+        speed: type.speed,
+        range: type.range,
+        bounces: Math.min(bounces, 6), // cap at 6 bounces
+        bounceRange: type.bounceRange + (level - 1) * 20,
+        damageFalloff: type.damageFalloff,
+        level: level || 1
+      };
+      const bolt = new LightningChainProjectile(scene, px, py, direction, stats);
+      scene.projectileGroup.add(bolt);
+      this._activeProjectiles.push(bolt);
+      if (scene.audioManager) scene.audioManager.playWeaponFire(weaponKey);
+      return;
+    }
+
     const target = this.findNearestEnemy(type.range * 1.5);
     if (!target && !type.aura) return;
 
@@ -184,7 +213,7 @@ class WeaponManager {
         if (p === this._activeBeam) this._activeBeam = null;
         this._activeProjectiles.splice(i, 1);
         // Only return to pool if it's a pooled projectile (not beam/boomerang_dedicated)
-        if (p && p.weaponTypeKey !== 'beam' && p.weaponTypeKey !== 'boomerang_dedicated') {
+        if (p && p.weaponTypeKey !== 'beam' && p.weaponTypeKey !== 'boomerang_dedicated' && p.weaponTypeKey !== 'lightning_chain') {
           scene.projectilePool.release(p);
         }
       } else {

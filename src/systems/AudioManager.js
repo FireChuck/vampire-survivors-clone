@@ -208,6 +208,13 @@ class AudioManager {
           this._osc('sine', 1200, t, 0.3, 0.06);
           this._noise(t, 0.2, 0.04);
           break;
+        case 'lightning_chain':
+          // Lightning chain — electric crackle cascade
+          this._noise(t, 0.06, 0.25);
+          this._osc('sine', 1200, t, 0.05, 0.15);
+          this._osc('sine', 800, t + 0.03, 0.04, 0.1);
+          this._osc('sine', 600, t + 0.06, 0.03, 0.08);
+          break;
         default:
           // Generic fire
           this._osc('sine', 500, t, 0.08, 0.12);
@@ -284,6 +291,22 @@ class AudioManager {
   playMenuClick() {
     this._play((t) => {
       this._osc('sine', 1000, t, 0.04, 0.15);
+    });
+  }
+
+  playBossWarning() {
+    this._play((t) => {
+      this._osc('sawtooth', 300, t, 0.2, 0.25);
+      this._osc('sawtooth', 250, t + 0.25, 0.2, 0.25);
+      this._osc('sawtooth', 200, t + 0.5, 0.3, 0.3);
+    });
+  }
+
+  playLightningChain() {
+    this._play((t) => {
+      this._osc('sine', 1200, t, 0.05, 0.15);
+      this._osc('sine', 800, t + 0.03, 0.05, 0.1);
+      this._osc('sine', 600, t + 0.06, 0.04, 0.08);
     });
   }
 
