@@ -16,6 +16,14 @@ class BiomeManager {
     this._vignetteOverlay = null;
     this._portalMarker = null;
     this._torchFlickerTimers = [];
+    this._visitedBiomes = new Set();
+    this._hudBiomeBadge = null;
+    this._biomeEntryBanner = null;
+    this._dungeonFadeRect = null;
+    this._BIOME_EMOJI = {
+      Graveyard: '⚰', Dark_Forest: '🌲', Blood_Moor: '🩸',
+      Catacombs: '💀', Dungeon: '🏚'
+    };
     this._initBiomes();
     this._drawGround();
     this._createVignette();
@@ -58,8 +66,18 @@ class BiomeManager {
 
     this._lastBiome = biome.name;
     this._currentBiome = biome;
+
+    // Dungeon fade transition
+    var enteringDungeon = biome.isDungeon;
+    var leavingDungeon = this._lastBiome && this._wasDungeon && !enteringDungeon;
+    this._wasDungeon = enteringDungeon;
+    if (enteringDungeon || leavingDungeon) {
+      this._doDungeonFade(enteringDungeon);
+    }
+
     this._smoothBiomeTransition(biome);
-    this._showBiomeName(biome.name);
+    this._showBiomeEntryBanner(biome.name);
+    this._updateHUDBiomeBadge(biome.name);
     this._spawnAmbientParticles(biome.name);
     this._spawnBiomeDecorations(biome);
     this._updateVignette(biome);
@@ -126,36 +144,142 @@ class BiomeManager {
     });
   }
 
-  _showBiomeName(biomeName) {
-    var scene = this.scene;
-    if (this._biomeNameText) this._biomeNameText.destroy();
+  // ── Biome Entry Banner (once per biome) ──
 
+  _showBiomeEntryBanner(biomeName) {
+    if (this._visitedBiomes.has(biomeName)) return;
+    this._visitedBiomes.add(biomeName);
+
+    var scene = this.scene;
     var displayName = biomeName.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
     var sw = scene.scale.width;
+    var sh = scene.scale.height;
 
-    this._biomeNameText = scene.add.text(sw / 2, scene.scale.height * 0.3, '~ ' + displayName + ' ~', {
-      fontSize: '28px',
+    // Full-width banner background
+    var bannerBg = scene.add.rectangle(sw / 2, sh * 0.28, sw * 0.8, 80, 0x000000, 0.7)
+      .setScrollFactor(0).setDepth(65).setAlpha(0);
+
+    var emoji = this._BIOME_EMOJI[biomeName] || '🗺';
+    var bannerText = scene.add.text(sw / 2, sh * 0.28, emoji + '  ' + displayName + '  ' + emoji, {
+      fontSize: '36px',
       fontFamily: 'Arial, sans-serif',
       color: '#ffffff',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 4
-    }).setOrigin(0.5).setDepth(60).setScrollFactor(0).setAlpha(0);
+      strokeThickness: 5
+    }).setOrigin(0.5).setDepth(66).setScrollFactor(0).setAlpha(0);
 
+    this._biomeEntryBanner = { bg: bannerBg, text: bannerText };
+
+    // Animate: fade in (500ms) → hold (1000ms) → fade out (500ms)
     scene.tweens.add({
-      targets: this._biomeNameText,
+      targets: [bannerBg, bannerText],
       alpha: 1,
-      duration: 600,
-      ease: 'Sine.easeIn',
-      hold: 1200,
-      yoyo: true,
+      duration: 500,
+      ease: 'Power2',
       onComplete: function() {
-        if (this._biomeNameText) {
-          this._biomeNameText.destroy();
-          this._biomeNameText = null;
-        }
+        scene.tweens.add({
+          targets: [bannerBg, bannerText],
+          alpha: 0,
+          duration: 500,
+          delay: 1000,
+          ease: 'Power2',
+          onComplete: function() {
+            bannerBg.destroy();
+            bannerText.destroy();
+            if (this._biomeEntryBanner && this._biomeEntryBanner.bg === bannerBg) {
+              this._biomeEntryBanner = null;
+            }
+          }.bind(this)
+        });
       }.bind(this)
     });
+  }
+
+  // ── Dungeon Enter/Exit Fade ──
+
+  _doDungeonFade(entering) {
+    var scene = this.scene;
+    if (this._dungeonFadeRect) this._dungeonFadeRect.destroy();
+
+    this._dungeonFadeRect = scene.add.rectangle(
+      scene.scale.width / 2, scene.scale.height / 2,
+      scene.scale.width, scene.scale.height, 0x000000, 1
+    ).setScrollFactor(0).setDepth(100);
+
+    if (entering) {
+      // Start fully black, fade out (300ms)
+      this._dungeonFadeRect.setAlpha(1);
+      scene.tweens.add({
+        targets: this._dungeonFadeRect,
+        alpha: 0,
+        duration: 300,
+        ease: 'Sine.easeOut',
+        onComplete: function() {
+          if (this._dungeonFadeRect) { this._dungeonFadeRect.destroy(); this._dungeonFadeRect = null; }
+        }.bind(this)
+      });
+    } else {
+      // Fade to black (300ms), then remove
+      this._dungeonFadeRect.setAlpha(0);
+      scene.tweens.add({
+        targets: this._dungeonFadeRect,
+        alpha: 1,
+        duration: 300,
+        ease: 'Sine.easeIn',
+        onComplete: function() {
+          if (this._dungeonFadeRect) { this._dungeonFadeRect.destroy(); this._dungeonFadeRect = null; }
+        }.bind(this)
+      });
+    }
+  }
+
+  // ── HUD Biome Indicator Badge ──
+
+  _updateHUDBiomeBadge(biomeName) {
+    var scene = this.scene;
+    var emoji = this._BIOME_EMOJI[biomeName] || '🗺';
+    var displayName = biomeName.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+    var label = emoji + ' ' + displayName;
+
+    if (this._hudBiomeBadge) {
+      // Update existing badge text
+      this._hudBiomeBadge.text.setText(label);
+      // Subtle pulse on change
+      scene.tweens.killTweensOf(this._hudBiomeBadge.container);
+      this._hudBiomeBadge.container.setAlpha(1);
+      scene.tweens.add({
+        targets: this._hudBiomeBadge.container,
+        alpha: 0.5,
+        duration: 400,
+        ease: 'Sine.easeOut',
+        yoyo: true
+      });
+      return;
+    }
+
+    // Create badge container
+    var badgeBg = scene.add.rectangle(0, 0, 150, 28, 0x000000, 0.55)
+      .setOrigin(0).setStrokeStyle(1, 0x444444, 0.6);
+    var badgeText = scene.add.text(75, 14, label, {
+      fontSize: '13px',
+      fontFamily: 'Arial, sans-serif',
+      color: '#cccccc',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+
+    var container = scene.add.container(12, 40, [badgeBg, badgeText])
+      .setScrollFactor(0).setDepth(55).setAlpha(0);
+
+    // Fade in
+    scene.tweens.add({
+      targets: container,
+      alpha: 1,
+      duration: 600,
+      ease: 'Sine.easeOut'
+    });
+
+    this._hudBiomeBadge = { container: container, text: badgeText, bg: badgeBg };
   }
 
   // ── Vignette Overlay ──
