@@ -44,6 +44,20 @@ class CollisionManager {
       if (scene.player.stats.explosionOnKill) {
         scene.weaponManager.explosionOnKill(data.x, data.y);
       }
+      // Track boss kills for character unlock progression
+      if (data.isBoss) {
+        scene._bossKillsThisRun = (scene._bossKillsThisRun || 0) + 1;
+      }
+    });
+
+    // Boss kill → spawn 1-3 content-type chests
+    scene.events.on('bossKilled', (data) => {
+      scene.spawnManager.spawnBossChests(data.x, data.y);
+    });
+
+    // Mini-boss kill → spawn 1 mystery chest
+    scene.events.on('miniBossKilled', (data) => {
+      scene.spawnManager.spawnMiniBossChest(data.x, data.y);
     });
 
     scene.events.on('weaponAOE', (data) => {
@@ -184,7 +198,8 @@ class CollisionManager {
         time: scene.hud ? scene.hud.getElapsedTime() : 0,
         itemsCollected: scene._itemsCollected || 0,
         dps: scene.getDPS ? scene.getDPS() : 0,
-        totalDamageDealt: scene._totalDamageDealt || 0
+        totalDamageDealt: scene._totalDamageDealt || 0,
+        bossKills: scene._bossKillsThisRun || 0
       };
 
       const achievementsBefore = [...scene.meta.data.achievements];

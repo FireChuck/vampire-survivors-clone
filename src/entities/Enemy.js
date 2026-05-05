@@ -309,8 +309,16 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       y: this.y,
       xpValue: this.xpValue,
       enemyType: this.enemyTypeKey,
-      color: this.color
+      color: this.color,
+      isBoss: !!this.isBoss
     });
+
+    // Emit boss/mini-boss specific events for chest spawning
+    if (this.isBoss && !this.isMiniBoss) {
+      this.scene.events.emit('bossKilled', { x: this.x, y: this.y });
+    } else if (this.isMiniBoss) {
+      this.scene.events.emit('miniBossKilled', { x: this.x, y: this.y });
+    }
 
     if (this.scene.killCount !== undefined) {
       this.scene.killCount++;

@@ -1,6 +1,7 @@
-// Chest.js — DLC Chest/Loot System with 4 Rarity Types
-// Types: Normal (60%), Rare (25%), Epic (12%), Legendary (3%)
-// Each type has different drop tables, visual styles, and particle effects
+// Chest.js — DLC Chest/Loot System with 4 Rarity Types + 4 Content Types
+// Rarity: Normal (60%), Rare (25%), Epic (12%), Legendary (3%)
+// Content: gold (XP burst), weapon (new weapon), passive (passive upgrade), mystery (random + HP)
+// Content types have distinct visuals and rewards; rarity controls visual flair
 
 const CHEST_TYPES = {
   normal: {
@@ -49,7 +50,47 @@ const CHEST_TYPES = {
   }
 };
 
-// Weighted spawn rates
+// Content type definitions — distinct chest types with unique rewards
+const CHEST_CONTENT_TYPES = {
+  gold: {
+    name: 'Gold Chest',
+    icon: '💰',
+    color: { body: 0xcc9900, lid: 0xffcc00, highlight: 0xffee55, lock: 0x996600 },
+    glowColor: 0xffdd00,
+    glowIntensity: 0.5,
+    particleColor: 0xffee00,
+    particleCount: 14
+  },
+  weapon: {
+    name: 'Weapon Chest',
+    icon: '⚔️',
+    color: { body: 0x882222, lid: 0xcc3333, highlight: 0xff6655, lock: 0x661111 },
+    glowColor: 0xff4444,
+    glowIntensity: 0.4,
+    particleColor: 0xff6644,
+    particleCount: 12
+  },
+  passive: {
+    name: 'Passive Chest',
+    icon: '🛡️',
+    color: { body: 0x116644, lid: 0x22aa66, highlight: 0x55dd99, lock: 0x0d4433 },
+    glowColor: 0x33cc77,
+    glowIntensity: 0.4,
+    particleColor: 0x44ee88,
+    particleCount: 12
+  },
+  mystery: {
+    name: 'Mystery Chest',
+    icon: '❓',
+    color: { body: 0x4444aa, lid: 0x6666dd, highlight: 0x9999ff, lock: 0x333388 },
+    glowColor: 0x7777ff,
+    glowIntensity: 0.6,
+    particleColor: 0xaaaa44,
+    particleCount: 18
+  }
+};
+
+// Weighted spawn rates for rarity
 const CHEST_SPAWN_WEIGHTS = [
   { type: 'normal', weight: 60 },
   { type: 'rare', weight: 25 },
@@ -58,7 +99,7 @@ const CHEST_SPAWN_WEIGHTS = [
 ];
 
 class Chest extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y, chestType) {
+  constructor(scene, x, y, options) {
     super(scene, x, y, null);
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -67,13 +108,43 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
     this.body.setOffset(-14, -12);
     this.body.setImmovable(true);
 
-    // Determine chest type (weighted random if not specified)
-    if (chestType && CHEST_TYPES[chestType]) {
-      this._typeKey = chestType;
+    // Parse options: can be string (legacy rarity) or object { rarity, content }
+    let rarityKey, contentKey;
+    if (typeof options === 'string') {
+      rarityKey = options;
+      contentKey = null;
+    } else if (options && typeof options === 'object') {
+      rarityKey = options.rarity || null;
+      contentKey = options.content || null;
+    } else {
+      rarityKey = null;
+      contentKey = null;
+    }
+
+    // Determine rarity (weighted random if not specified)
+    if (rarityKey && CHEST_TYPES[rarityKey]) {
+      this._typeKey = rarityKey;
     } else {
       this._typeKey = Chest._rollRarity();
     }
     this._type = CHEST_TYPES[this._typeKey];
+
+    // Determine content type
+    this._contentKey = contentKey || null;
+    this._contentType = contentKey ? CHEST_CONTENT_TYPES[contentKey] : null;
+
+    // Use content type colors if set, otherwise rarity colors
+    this._displayColor = this._contentType ? this._contentType.color : this._type.color;
+    this._displayGlowColor = this._contentType ? this._contentType.glowColor : this._type.glowColor;
+    this._displayGlowIntensity = this._contentType
+      ? this._contentType.glowIntensity
+      : this._type.glowIntensity;
+    this._displayParticleColor = this._contentType
+      ? this._contentType.particleColor
+      : this._type.particleColor;
+    this._displayParticleCount = this._contentType
+      ? this._contentType.particleCount
+      : this._type.particleCount;
 
     this._graphics = scene.add.graphics();
     this._graphics.setDepth(5);
@@ -81,7 +152,7 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
     this._animTimer = 0;
     this._bobOffset = Math.random() * Math.PI * 2;
 
-    // Glow effect for rare+ chests
+    // Glow effect for rare+ or content-type chests
     this._glowGraphics = scene.add.graphics();
     this._glowGraphics.setDepth(4);
 
@@ -99,9 +170,17 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
     return 'normal';
   }
 
+  /** Build display label for content-type chests */
+  _getLabel() {
+    if (this._contentType) {
+      return this._contentType.icon + ' ' + this._contentType.name;
+    }
+    return this._type.label;
+  }
+
   _drawClosed() {
     const g = this._graphics;
-    const c = this._type.color;
+    const c = this._displayColor;
     g.clear();
 
     // Shadow
@@ -131,15 +210,19 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
     g.lineBetween(-14, -4, 14, -4);
     g.lineBetween(-14, 4, 14, 4);
 
-    // Rarity label
-    if (this._type.label) {
-      g.lineStyle(0);
+    // Content-type icon label above chest
+    if (this._contentType) {
+      // Draw a small icon indicator circle
+      g.fillStyle(this._displayGlowColor, 0.6);
+      g.fillCircle(0, -20, 8);
+      g.lineStyle(1, c.highlight, 0.8);
+      g.strokeCircle(0, -20, 8);
     }
   }
 
   _drawGlow(time) {
     const glow = this._glowGraphics;
-    const intensity = this._type.glowIntensity;
+    const intensity = this._displayGlowIntensity;
 
     if (intensity <= 0 || this._opened) {
       glow.clear();
@@ -151,17 +234,17 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
     const alpha = intensity * (0.4 + 0.3 * pulse);
     const radius = 24 + pulse * 6;
 
-    glow.fillStyle(this._type.glowColor, alpha);
+    glow.fillStyle(this._displayGlowColor, alpha);
     glow.fillCircle(0, 0, radius);
 
     // Outer ring
-    glow.lineStyle(2, this._type.glowColor, alpha * 0.6);
+    glow.lineStyle(2, this._displayGlowColor, alpha * 0.6);
     glow.strokeCircle(0, 0, radius + 4);
   }
 
   _drawOpening() {
     const g = this._graphics;
-    const c = this._type.color;
+    const c = this._displayColor;
     g.clear();
 
     // Shadow
@@ -198,52 +281,53 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
     this._drawOpening();
     this._glowGraphics.clear();
 
-    // Determine drop based on chest type's drop rates
-    const rates = this._type.dropRates;
-    const roll = Math.random();
-    const gameTimeSec = this.scene.gameTime / 1000;
-    let dropType, message;
+    let message;
+    let dropType;
 
-    // Adjust for game time (early game more heals, late game more weapon upgrades)
-    const healBoost = gameTimeSec < 120 ? 0.15 : 0;
-    const weaponBoost = gameTimeSec > 300 ? 0.10 : 0;
-
-    const effectiveRates = {
-      weaponUpgrade: rates.weaponUpgrade + weaponBoost,
-      heal: rates.heal + healBoost,
-      magnetPulse: rates.magnetPulse,
-      damageBoost: rates.damageBoost
-    };
-
-    if (roll < effectiveRates.weaponUpgrade) {
-      dropType = 'weaponUpgrade';
-      message = this._handleWeaponUpgrade(player);
-    } else if (roll < effectiveRates.weaponUpgrade + effectiveRates.heal) {
-      dropType = 'heal';
-      message = this._handleHeal(player);
-    } else if (roll < effectiveRates.weaponUpgrade + effectiveRates.heal + effectiveRates.magnetPulse) {
-      dropType = 'magnetPulse';
-      message = this._handleMagnetPulse(player);
+    // Content-type chests have deterministic rewards
+    if (this._contentKey) {
+      switch (this._contentKey) {
+        case 'gold':
+          dropType = 'goldXp';
+          message = this._handleGoldXP(player);
+          break;
+        case 'weapon':
+          dropType = 'newWeapon';
+          message = this._handleNewWeapon(player);
+          break;
+        case 'passive':
+          dropType = 'passiveUpgrade';
+          message = this._handlePassiveUpgrade(player);
+          break;
+        case 'mystery':
+          dropType = 'mystery';
+          message = this._handleMystery(player);
+          break;
+        default:
+          dropType = 'heal';
+          message = this._handleHeal(player);
+      }
     } else {
-      dropType = 'damageBoost';
-      message = this._handleDamageBoost(player);
+      // Legacy rarity-based drop table
+      message = this._openLegacyRarity(player);
+      dropType = 'legacy';
     }
 
-    // Particles — scaled by rarity
+    // Particles
     if (this.scene.particleSystem) {
-      this.scene.particleSystem.emitDeath(this.x, this.y, this._type.particleColor, this._type.particleCount);
+      this.scene.particleSystem.emitDeath(this.x, this.y, this._displayParticleColor, this._displayParticleCount);
     }
 
     // Opening glow burst
     this._spawnOpeningGlow();
 
-    // Toast text with chest type prefix
-    const prefix = this._typeKey !== 'normal' ? `[${this._type.name}] ` : '';
-    this._showToast(`${prefix}${message}`, this._type.glowColor);
+    // Toast text
+    const prefix = this._getLabel() ? `[${this._getLabel()}] ` : '';
+    this._showToast(`${prefix}${message}`, this._displayGlowColor);
 
     // Emit event for audio
     this.scene.events.emit('chestOpened', {
-      x: this.x, y: this.y, dropType, rarity: this._typeKey
+      x: this.x, y: this.y, dropType, rarity: this._typeKey, content: this._contentKey
     });
 
     // Destroy after animation
@@ -256,15 +340,157 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
+  // ── Content Type Handlers ──
+
+  /** Gold Chest: Spawn large XP orbs around chest */
+  _handleGoldXP(player) {
+    const scene = this.scene;
+    const orbCount = 8 + Math.floor(Math.random() * 6);
+    let totalXP = 0;
+
+    for (let i = 0; i < orbCount; i++) {
+      const angle = (Math.PI * 2 / orbCount) * i + (Math.random() - 0.5) * 0.5;
+      const dist = 15 + Math.random() * 35;
+      const ox = this.x + Math.cos(angle) * dist;
+      const oy = this.y + Math.sin(angle) * dist;
+      // Large XP values: 15-40 per orb
+      const value = 15 + Math.floor(Math.random() * 25);
+      totalXP += value;
+
+      if (scene.xpOrbGroup && typeof XPOrb !== 'undefined') {
+        const orb = new XPOrb(scene, ox, oy, value);
+        scene.xpOrbGroup.add(orb);
+        scene.xpOrbs.push(orb);
+      }
+    }
+
+    return `XP Burst! +${totalXP} XP (${orbCount} orbs)`;
+  }
+
+  /** Weapon Chest: Grant a random new weapon if slot available */
+  _handleNewWeapon(player) {
+    const scene = this.scene;
+    const wm = scene.weaponManager;
+    if (!wm) return 'No weapon system!';
+
+    const allKeys = Object.keys(WEAPON_TYPES);
+    const ownedKeys = wm.weapons.map(function(w) { return w.key; });
+    const available = allKeys.filter(function(k) { return !ownedKeys.includes(k); });
+
+    if (available.length === 0) {
+      // Fallback: upgrade existing weapon
+      return this._handleWeaponUpgrade(player);
+    }
+
+    const pick = available[Math.floor(Math.random() * available.length)];
+    wm.addWeapon(pick);
+
+    // HUD notification
+    if (scene.hud && scene.hud.showWeaponSwap) {
+      const name = pick.charAt(0).toUpperCase() + pick.slice(1).replace(/_/g, ' ');
+      scene.hud.showWeaponSwap(name);
+    }
+
+    const baseType = WEAPON_TYPES[pick];
+    return `New Weapon: ${baseType ? baseType.name : pick}!`;
+  }
+
+  /** Passive Chest: Apply a random passive upgrade from UPGRADE_TYPES */
+  _handlePassiveUpgrade(player) {
+    const scene = this.scene;
+
+    // Filter to passive-only upgrades (exclude weapon-specific ones)
+    const passivePool = (typeof UPGRADE_TYPES !== 'undefined')
+      ? UPGRADE_TYPES.filter(function(u) {
+          return u.id !== 'newWeapon' && u.id !== 'weaponUpgrade';
+        })
+      : [];
+
+    if (passivePool.length === 0) {
+      return this._handleHeal(player);
+    }
+
+    const pick = passivePool[Math.floor(Math.random() * passivePool.length)];
+    if (typeof pick.apply === 'function') {
+      pick.apply(player);
+    }
+
+    if (scene.hud) {
+      scene.hud.updateHP(player.hp, player.maxHp);
+    }
+
+    return `${pick.icon} ${pick.name}`;
+  }
+
+  /** Mystery Chest: Random reward from all types + bonus HP */
+  _handleMystery(player) {
+    const subTypes = ['gold', 'weapon', 'passive'];
+    const roll = subTypes[Math.floor(Math.random() * subTypes.length)];
+    let subMessage;
+
+    switch (roll) {
+      case 'gold':
+        subMessage = this._handleGoldXP(player);
+        break;
+      case 'weapon':
+        subMessage = this._handleNewWeapon(player);
+        break;
+      case 'passive':
+        subMessage = this._handlePassiveUpgrade(player);
+        break;
+      default:
+        subMessage = this._handleHeal(player);
+    }
+
+    // Bonus HP on top
+    const bonusHP = 20 + Math.floor(Math.random() * 30);
+    player.hp = Math.min(player.hp + bonusHP, player.maxHp);
+    if (this.scene.hud) {
+      this.scene.hud.updateHP(player.hp, player.maxHp);
+    }
+    if (this.scene.damageNumbers) {
+      this.scene.damageNumbers.show(player.x, player.y - 20, bonusHP, 'heal');
+    }
+
+    return `Mystery: ${subMessage} +${bonusHP} HP!`;
+  }
+
+  // ── Legacy Rarity Handlers (unchanged) ──
+
+  _openLegacyRarity(player) {
+    const rates = this._type.dropRates;
+    const roll = Math.random();
+    const gameTimeSec = this.scene.gameTime / 1000;
+
+    const healBoost = gameTimeSec < 120 ? 0.15 : 0;
+    const weaponBoost = gameTimeSec > 300 ? 0.10 : 0;
+
+    const effectiveRates = {
+      weaponUpgrade: rates.weaponUpgrade + weaponBoost,
+      heal: rates.heal + healBoost,
+      magnetPulse: rates.magnetPulse,
+      damageBoost: rates.damageBoost
+    };
+
+    if (roll < effectiveRates.weaponUpgrade) {
+      return this._handleWeaponUpgrade(player);
+    } else if (roll < effectiveRates.weaponUpgrade + effectiveRates.heal) {
+      return this._handleHeal(player);
+    } else if (roll < effectiveRates.weaponUpgrade + effectiveRates.heal + effectiveRates.magnetPulse) {
+      return this._handleMagnetPulse(player);
+    } else {
+      return this._handleDamageBoost(player);
+    }
+  }
+
   _spawnOpeningGlow() {
-    if (this._type.glowIntensity <= 0) return;
+    if (this._displayGlowIntensity <= 0) return;
 
     const g = this.scene.add.graphics();
     g.setDepth(6);
-    const color = this._type.glowColor;
-    const maxRadius = 40 + this._type.glowIntensity * 30;
+    const color = this._displayGlowColor;
+    const maxRadius = 40 + this._displayGlowIntensity * 30;
 
-    // Expanding ring
     const ring = this.scene.add.graphics();
     ring.setDepth(6);
 
@@ -301,7 +527,6 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
       return `+${bonus} HP (no weapon)`;
     }
 
-    // Pick random weapon to upgrade
     const w = scene._weapons[Math.floor(Math.random() * scene._weapons.length)];
     const oldLevel = w.level;
     const levelBonus = this._typeKey === 'legendary' ? 2 : 1;
@@ -346,7 +571,6 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
         collected++;
       }
     }
-    // Visual pulse ring
     const g = this.scene.add.graphics();
     g.lineStyle(2, 0x88ff88, 0.6);
     g.strokeCircle(this.x, this.y, magnetRange);
@@ -368,10 +592,9 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
     const duration = isLeg ? 25000 : 15000;
     player.stats.damageMultiplier = (player.stats.damageMultiplier || 1) * boostMultiplier;
 
-    // Visual indicator: colored glow
     const g = this.scene.add.graphics();
     g.setDepth(4);
-    const glowColor = this._type.glowColor;
+    const glowColor = this._displayGlowColor;
     const glowTimer = this.scene.time.addEvent({
       delay: 200,
       repeat: Math.floor(duration / 200),
@@ -423,8 +646,7 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
     const bob = Math.sin(this._animTimer / 400 + this._bobOffset) * 2;
     this._graphics.setPosition(this.x, this.y + bob);
 
-    // Glow animation
-    if (this._type.glowIntensity > 0) {
+    if (this._displayGlowIntensity > 0) {
       this._glowGraphics.setPosition(this.x, this.y + bob);
       this._drawGlow(this._animTimer);
     }

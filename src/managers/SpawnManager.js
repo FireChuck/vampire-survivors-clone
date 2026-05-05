@@ -25,7 +25,7 @@ class SpawnManager {
     // DLC systems
     this._chests = [];
     this._lastChestSpawnTime = 0;
-    this._chestSpawnInterval = GAME_CONFIG.chestSpawnInterval * 1000;
+    this._chestSpawnInterval = (60 + Math.random() * 30) * 1000; // 60-90s periodic
     this._dlcEnemySpawnTimers = { summoner: 0, exploder: 0, tank: 0, necromancer: 0 };
 
     // Elite system
@@ -435,27 +435,61 @@ class SpawnManager {
     var scene = this.scene;
     var text = scene._waveText;
 
-    if (isBossWave) {
-      text.setText('\u2694 BOSS WAVE ' + waveNum + ' \u2694');
-      text.setStyle({ color: '#ff4444', fontSize: '28px' });
-      if (scene.screenShake) scene.screenShake.shake('bossSpawn');
-    } else {
-      text.setText('WAVE ' + waveNum);
-      text.setStyle({ color: '#ffd700', fontSize: '24px' });
-    }
-    text.setAlpha(1);
-    text.setScale(1.3);
+    // QoL T4: Wave Announcer with Countdown (3... 2... 1... GO!)
+    var countSteps = ['3', '2', '1', isBossWave ? '⚔ FIGHT! ⚔' : 'GO!'];
+    var idx = 0;
 
-    scene.tweens.killTweensOf(text);
-    scene.tweens.add({
-      targets: text,
-      alpha: 0,
-      scaleX: 1,
-      scaleY: 1,
-      duration: 2000,
-      delay: 800,
-      ease: 'Power2'
-    });
+    var showNext = () => {
+      if (idx >= countSteps.length) {
+        // Show final wave text
+        if (isBossWave) {
+          text.setText('\u2694 BOSS WAVE ' + waveNum + ' \u2694');
+          text.setStyle({ color: '#ff4444', fontSize: '28px' });
+          if (scene.screenShake) scene.screenShake.shake('bossSpawn');
+        } else {
+          text.setText('WAVE ' + waveNum);
+          text.setStyle({ color: '#ffd700', fontSize: '24px' });
+        }
+        text.setAlpha(1);
+        text.setScale(1.3);
+
+        scene.tweens.killTweensOf(text);
+        scene.tweens.add({
+          targets: text,
+          alpha: 0,
+          scaleX: 1,
+          scaleY: 1,
+          duration: 1500,
+          delay: 500,
+          ease: 'Power2'
+        });
+        return;
+      }
+
+      var step = countSteps[idx];
+      text.setText(step);
+      text.setAlpha(0);
+      text.setScale(2);
+
+      var color = idx < 3 ? '#ffffff' : (isBossWave ? '#ff4444' : '#44ff44');
+      text.setStyle({ color: color, fontSize: '36px' });
+
+      scene.tweens.killTweensOf(text);
+      scene.tweens.add({
+        targets: text,
+        alpha: 1,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 300,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          scene.time.delayedCall(400, showNext);
+        }
+      });
+      idx++;
+    };
+
+    showNext();
   }
 
   // ── Chest Spawning ──
@@ -463,7 +497,7 @@ class SpawnManager {
   _updateChestSpawning() {
     if (this.gameTime - this._lastChestSpawnTime > this._chestSpawnInterval) {
       this._lastChestSpawnTime = this.gameTime;
-      this._chestSpawnInterval = (45 + Math.random() * 15) * 1000;
+      this._chestSpawnInterval = (60 + Math.random() * 30) * 1000; // 60-90 seconds
       this._spawnChest();
     }
   }
@@ -479,6 +513,33 @@ class SpawnManager {
 
     var chest = new Chest(scene, cx, cy);
     scene.chestGroup.add(chest);
+    this._chests.push(chest);
+  }
+
+  // ── Boss Kill Chest Spawning ──
+
+  /** Spawn 1-3 chests after a boss kill (random content types) */
+  spawnBossChests(x, y) {
+    const count = 1 + Math.floor(Math.random() * 3); // 1-3
+    const contentPool = ['gold', 'weapon', 'passive'];
+
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 / count) * i + (Math.random() - 0.5) * 0.8;
+      const dist = 30 + Math.random() * 40;
+      const cx = x + Math.cos(angle) * dist;
+      const cy = y + Math.sin(angle) * dist;
+      const content = contentPool[Math.floor(Math.random() * contentPool.length)];
+
+      var chest = new Chest(this.scene, cx, cy, { content: content });
+      this.scene.chestGroup.add(chest);
+      this._chests.push(chest);
+    }
+  }
+
+  /** Spawn 1 Mystery Chest on mini-boss kill */
+  spawnMiniBossChest(x, y) {
+    var chest = new Chest(this.scene, x, y, { content: 'mystery' });
+    this.scene.chestGroup.add(chest);
     this._chests.push(chest);
   }
 
