@@ -64,6 +64,11 @@ class AbilitySystem {
     // Update UI
     this._updateSlotVisual(slotIdx);
 
+    // Notify synergy system to re-check
+    if (this.scene.synergySystem) {
+      this.scene.synergySystem.refresh();
+    }
+
     return true;
   }
 
@@ -123,6 +128,11 @@ class AbilitySystem {
     if (this._dashTrailGraphics) this._dashTrailGraphics.destroy();
     this._dashTrailGraphics = this.scene.add.graphics();
     this._dashTrailGraphics.setDepth(9);
+
+    // Synergy hook: Dash Strike
+    if (this.scene.synergySystem) {
+      this.scene.synergySystem.onDashActivated();
+    }
 
     // End dash after duration
     this.scene.time.delayedCall(dur, () => {

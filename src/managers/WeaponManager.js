@@ -32,6 +32,12 @@ class WeaponManager {
 
     const pick = available[Math.floor(Math.random() * available.length)];
     this.addWeapon(pick);
+
+    // QoL: Weapon swap indicator
+    if (this.scene.hud && this.scene.hud.showWeaponSwap) {
+      const name = pick.charAt(0).toUpperCase() + pick.slice(1).replace(/_/g, ' ');
+      this.scene.hud.showWeaponSwap(name);
+    }
   }
 
   handleWeaponLevelUpgrade() {

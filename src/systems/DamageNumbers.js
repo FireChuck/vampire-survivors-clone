@@ -108,13 +108,22 @@ class DamageNumbers {
 
     switch (type) {
       case 'damage':
-        // Size scales with damage amount
-        const dmgSize = displayVal >= 30 ? '18px' : displayVal >= 15 ? '16px' : '14px';
-        text.setStyle({ color: typeColor.color, fontSize: dmgSize });
+        // QoL: Size scales smoothly with damage amount (4 tiers)
+        const dmgSize = displayVal >= 100 ? '22px' : displayVal >= 50 ? '20px' : displayVal >= 25 ? '17px' : displayVal >= 10 ? '15px' : '13px';
+        // Color intensity increases with damage
+        const dmgAlpha = Math.min(1, 0.6 + displayVal / 100);
+        text.setStyle({ color: typeColor.color, fontSize: dmgSize, alpha: dmgAlpha });
         text.setText(`${displayVal}`);
-        // Subtle glow for typed damage
+        // Glow intensity scales with damage
+        const glowBlur = Math.min(8, 3 + Math.floor(displayVal / 20));
         if (damageType && damageType !== 'physical') {
-          text.setShadow(0, 0, typeColor.glow, 4, true, true);
+          text.setShadow(0, 0, typeColor.glow, glowBlur, true, true);
+        } else {
+          text.setShadow(0, 0, '#ff8888', Math.max(2, Math.floor(glowBlur / 2)), true, true);
+        }
+        // Big damage: slight upward bounce
+        if (displayVal >= 50) {
+          text.setScale(1.1);
         }
         break;
 

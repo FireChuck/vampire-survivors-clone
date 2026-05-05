@@ -27,6 +27,9 @@ class SpawnManager {
     this._lastChestSpawnTime = 0;
     this._chestSpawnInterval = GAME_CONFIG.chestSpawnInterval * 1000;
     this._dlcEnemySpawnTimers = { summoner: 0, exploder: 0, tank: 0, necromancer: 0 };
+
+    // Elite system
+    this._miniBossActive = false; // only one at a time
   }
 
   update(time, delta) {
@@ -211,6 +214,69 @@ class SpawnManager {
     ws.state = 'pause';
     ws.pauseTimer = 0;
     ws.bossActive = false;
+
+    // Mini-Boss spawn: every 3 waves (wave 3, 6, 9, 12, ...), only one at a time
+    if (ws.currentWave % 3 === 0 && !this._miniBossActive) {
+      this._spawnMiniBoss(ws.currentWave);
+    }
+  }
+
+  _spawnMiniBoss(wave) {
+    var scene = this.scene;
+    if (!scene.player || !scene.player.active) return;
+
+    var types = ['swarm_queen', 'golem', 'shadow_mage'];
+    var type = types[Math.floor(Math.random() * types.length)];
+
+    var angle = Math.random() * Math.PI * 2;
+    var dist = 450 + Math.random() * 100;
+    var x = scene.player.x + Math.cos(angle) * dist;
+    var y = scene.player.y + Math.sin(angle) * dist;
+
+    var miniBoss = new MiniBoss(scene, x, y, type, wave);
+
+    scene.enemyGroup.add(miniBoss);
+    scene.enemies.push(miniBoss);
+    this._miniBossActive = true;
+
+    // Screen edge indicator
+    scene.screenEdgeIndicators.addIndicator(miniBoss, 'boss');
+
+    // Announcement
+    scene._waveText.setText('MINI-BOSS: ' + miniBoss.miniBossName.toUpperCase());
+    scene._waveText.setStyle({ color: '#ff8844', fontSize: '22px' });
+    scene._waveText.setAlpha(1);
+    scene._waveText.setScale(1.2);
+    scene.tweens.killTweensOf(scene._waveText);
+    scene.tweens.add({
+      targets: scene._waveText,
+      alpha: 0,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 2500,
+      delay: 1000,
+      ease: 'Power2'
+    });
+
+    // Watch for mini-boss death
+    var mbRef = miniBoss;
+    var self = this;
+    scene.time.delayedCall(100, function() {
+      if (!mbRef || !mbRef.active) {
+        self._miniBossActive = false;
+        return;
+      }
+      var check = scene.time.addEvent({
+        delay: 500,
+        loop: true,
+        callback: function() {
+          if (!mbRef.active) {
+            self._miniBossActive = false;
+            check.destroy();
+          }
+        }
+      });
+    });
   }
 
   _wavePause(delta) {
@@ -250,8 +316,19 @@ class SpawnManager {
     var x = scene.player.x + Math.cos(angle) * dist;
     var y = scene.player.y + Math.sin(angle) * dist;
 
+    // QoL: Enemy spawn warning at screen edge
+    if (scene.addSpawnWarning) {
+      scene.addSpawnWarning(x, y, 'normal');
+    }
+
     var enemy;
-    if (typeKey === 'teleporter') {
+
+    // Elite spawn: 5% chance, from minute 3 onward
+    if (this.gameTime > 180000 && Math.random() < 0.05) {
+      var eliteVariants = ['chaser', 'shooter', 'boss'];
+      var eliteVariant = eliteVariants[Math.floor(Math.random() * eliteVariants.length)];
+      enemy = new EliteEnemy(scene, x, y, typeKey, eliteVariant);
+    } else if (typeKey === 'teleporter') {
       enemy = new TeleporterEnemy(scene, x, y);
     } else if (typeKey === 'tank') {
       enemy = new TankEnemy(scene, x, y);

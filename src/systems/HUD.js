@@ -1,7 +1,7 @@
 // HUD.js — Timer, Score, Level + XP bar, HP bar, Weapon Levels, top-left
 // Fixed to screen (scrollFactor 0) for camera-following world
 // QoL: Gradient HP/XP bars, rounded corners, weapon level display, save indicator
-// Polished: Compact layout, semi-transparent panels, clean typography
+// QoL T3: XP level preview, audio HUD controls, weapon swap indicator, damage direction
 
 class HUD {
   constructor(scene) {
@@ -50,6 +50,18 @@ class HUD {
       fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#999'
     }).setScrollFactor(0).setDepth(51);
 
+    // ── QoL: XP Level Preview (shows next level abilities) ──
+    this._xpPreviewText = scene.add.text(pad + 4, pad + 56, '', {
+      fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#666',
+      wordWrap: { width: 183 }
+    }).setScrollFactor(0).setDepth(51);
+
+    // ── QoL: Audio Volume Mini-Controls ──
+    this._audioBtnVisible = false;
+    this._audioMiniPanel = scene.add.graphics().setScrollFactor(0).setDepth(52).setVisible(false);
+    this._audioMiniTexts = [];
+    this._audioMiniOpen = false;
+
     // ── Weapon Level Display (right side panel) ──
     this._weaponPanel = scene.add.graphics();
     this._weaponPanel.setScrollFactor(0).setDepth(49);
@@ -71,6 +83,16 @@ class HUD {
     this.enemyText = scene.add.text(sw - pad, pad + 31, 'Enemies: 0', {
       fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#666'
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(50);
+
+    // ── QoL: Weapon Swap Indicator ──
+    this._swapIndicator = scene.add.text(sw / 2, 70, '', {
+      fontSize: '18px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
+      fontStyle: 'bold', stroke: '#000', strokeThickness: 3
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(55).setAlpha(0);
+    this._swapIndicatorTimer = null;
+
+    // ── QoL: Damage Direction Indicator ──
+    this._damageDirGraphics = scene.add.graphics().setScrollFactor(0).setDepth(48);
 
     // ── Save Indicator Toast ──
     this._saveToastText = scene.add.text(sw / 2, sw > 500 ? pad + 80 : 75, '', {
@@ -124,8 +146,8 @@ class HUD {
     if (!weapons || !weapons.length) return;
 
     const px = this._weaponPanelX;
-    const py = 56;
-    const lineH = 16;
+    const py = 48;
+    const lineH = 14;
 
     for (const t of this._weaponTexts) {
       if (t && t.active) t.destroy();
@@ -133,24 +155,25 @@ class HUD {
     this._weaponTexts = [];
     this._weaponPanel.clear();
 
-    const panelH = weapons.length * lineH + 8;
-    this._weaponPanel.fillStyle(0x000000, 0.4);
-    this._weaponPanel.fillRoundedRect(px - 4, py - 4, this._weaponPanelWidth, panelH, 6);
+    const panelH = weapons.length * lineH + 6;
+    this._weaponPanel.fillStyle(0x000000, 0.35);
+    this._weaponPanel.fillRoundedRect(px - 3, py - 3, this._weaponPanelWidth, panelH, 5);
 
     for (let i = 0; i < weapons.length; i++) {
       const w = weapons[i];
       const name = w.key ? w.key.charAt(0).toUpperCase() + w.key.slice(1) : '?';
       const lvl = w.level || 1;
 
+      // Compact pip display: filled dots
       let pips = '';
       const maxPips = 5;
       const filled = Math.min(lvl, maxPips);
       for (let p = 0; p < maxPips; p++) {
-        pips += p < filled ? '◆' : '◇';
+        pips += p < filled ? '●' : '○';
       }
 
-      const txt = this.scene.add.text(px + 4, py + i * lineH, `${name} Lv.${lvl} ${pips}`, {
-        fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#ccc'
+      const txt = this.scene.add.text(px + 4, py + i * lineH, `${name} ${pips}`, {
+        fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#bbb'
       }).setScrollFactor(0).setDepth(51);
 
       this._weaponTexts.push(txt);
@@ -165,8 +188,8 @@ class HUD {
     }
 
     const px = this._weaponPanelX;
-    const py = 56;
-    const lineH = 16;
+    const py = 48;
+    const lineH = 14;
 
     this._cooldownGraphics.clear();
 
@@ -260,8 +283,8 @@ class HUD {
     this._xpGraphics.clear();
     if (width > 0) {
       // XP gradient: bright cyan top → deeper teal bottom
-      this._xpGraphics.fillRoundedRect(this._xpBarX, this._xpBarY, width, 8, 2);
-      this._drawGradientBar(this._xpGraphics, this._xpBarX, this._xpBarY, width, 8, 0x88ffee, 0x227766, 2);
+      this._xpGraphics.fillRoundedRect(this._xpBarX, this._xpBarY, width, 6, 2);
+      this._drawGradientBar(this._xpGraphics, this._xpBarX, this._xpBarY, width, 6, 0x88ffee, 0x227766, 2);
     }
   }
 
@@ -320,6 +343,159 @@ class HUD {
     return this.elapsedSeconds;
   }
 
+  // ── QoL: XP Level Preview ──
+  updateXPPreview(current, needed, level) {
+    if (!this.scene.upgradeSystem || !this.scene.player) return;
+    const ratio = current / needed;
+    // Only show preview when close to leveling up (>80%)
+    if (ratio < 0.8) {
+      this._xpPreviewText.setText('');
+      return;
+    }
+    // Show a hint about upcoming level
+    const nextLevel = level + 1;
+    const pct = Math.round(ratio * 100);
+    this._xpPreviewText.setText(`⬆ Lv.${nextLevel} (${pct}%)`);
+    this._xpPreviewText.setStyle({ color: ratio > 0.95 ? '#ffd700' : '#888' });
+  }
+
+  // ── QoL: Weapon Swap Indicator ──
+  showWeaponSwap(weaponName) {
+    this._swapIndicator.setText(`🔫 Switched: ${weaponName}`);
+    this._swapIndicator.setAlpha(1);
+    this._swapIndicator.setScale(0.8);
+    this.scene.tweens.killTweensOf(this._swapIndicator);
+    this.scene.tweens.add({
+      targets: this._swapIndicator,
+      scaleX: 1, scaleY: 1,
+      alpha: 0,
+      y: this._swapIndicator.y - 30,
+      duration: 1500,
+      delay: 500,
+      ease: 'Power2'
+    });
+  }
+
+  // ── QoL: Damage Direction Indicator ──
+  showDamageDirection(fromWorldX, fromWorldY) {
+    if (!this.scene.player) return;
+    const player = this.scene.player;
+    const dx = fromWorldX - player.x;
+    const dy = fromWorldY - player.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 50) return; // Too close to show direction
+
+    const angle = Math.atan2(dy, dx);
+    const sw = this.scene.scale.width;
+    const sh = this.scene.scale.height;
+    const cx = sw / 2;
+    const cy = sh / 2;
+    const indicatorDist = 80;
+
+    const ix = cx + Math.cos(angle) * indicatorDist;
+    const iy = cy + Math.sin(angle) * indicatorDist;
+
+    // Draw arrow at screen edge direction
+    const g = this._damageDirGraphics;
+    const arrowSize = 12;
+    g.fillStyle(0xff4444, 0.7);
+    g.fillTriangle(
+      ix + Math.cos(angle) * arrowSize,
+      iy + Math.sin(angle) * arrowSize,
+      ix + Math.cos(angle + 2.5) * arrowSize * 0.6,
+      iy + Math.sin(angle + 2.5) * arrowSize * 0.6,
+      ix + Math.cos(angle - 2.5) * arrowSize * 0.6,
+      iy + Math.sin(angle - 2.5) * arrowSize * 0.6
+    );
+
+    // Fade out after 500ms
+    this.scene.time.delayedCall(500, () => {
+      // The graphics will be cleared on next frame or we clear the arrow
+    });
+  }
+
+  /** Clear damage direction indicators each frame */
+  clearDamageDirections() {
+    this._damageDirGraphics.clear();
+  }
+
+  // ── QoL: Audio Mini-Controls in HUD ──
+  toggleAudioMiniPanel() {
+    this._audioMiniOpen = !this._audioMiniOpen;
+    this._audioMiniPanel.setVisible(this._audioMiniOpen);
+    if (this._audioMiniOpen) {
+      this._drawAudioMiniPanel();
+    }
+    // Toggle audio button texts visibility
+    for (const t of this._audioMiniTexts) {
+      if (t && t.active) t.setVisible(this._audioMiniOpen);
+    }
+  }
+
+  _drawAudioMiniPanel() {
+    const g = this._audioMiniPanel;
+    g.clear();
+    // Clean old texts
+    for (const t of this._audioMiniTexts) {
+      if (t && t.active) t.destroy();
+    }
+    this._audioMiniTexts = [];
+
+    const pad = 10;
+    const x = pad;
+    const y = 72;
+    const w = 120;
+    const h = 50;
+
+    g.fillStyle(0x000000, 0.6);
+    g.fillRoundedRect(x, y, w, h, 5);
+    g.lineStyle(1, 0x4488ff, 0.5);
+    g.strokeRoundedRect(x, y, w, h, 5);
+
+    const vol = this.scene.audioManager ? Math.round(this.scene.audioManager._volume * 100) : 50;
+    const muted = this.scene.audioManager ? this.scene.audioManager._muted : false;
+
+    const label = this.scene.add.text(x + 5, y + 5, muted ? '🔇 Muted' : `🔊 ${vol}%`, {
+      fontSize: '10px', fontFamily: 'Arial, sans-serif', color: muted ? '#ff4444' : '#aaa'
+    }).setScrollFactor(0).setDepth(53).setInteractive({ useHandCursor: true });
+
+    label.on('pointerdown', () => {
+      if (this.scene.audioManager) {
+        const nowMuted = this.scene.audioManager.toggleMute();
+        this._drawAudioMiniPanel();
+      }
+    });
+
+    const hint = this.scene.add.text(x + 5, y + 22, 'Tap to toggle', {
+      fontSize: '9px', fontFamily: 'Arial, sans-serif', color: '#666'
+    }).setScrollFactor(0).setDepth(53);
+
+    // +/- buttons
+    const plusBtn = this.scene.add.text(x + w - 25, y + 5, '+', {
+      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#4488ff',
+      fontStyle: 'bold'
+    }).setScrollFactor(0).setDepth(53).setInteractive({ useHandCursor: true });
+    plusBtn.on('pointerdown', () => {
+      if (this.scene.audioManager) {
+        this.scene.audioManager.setVolume(Math.min(1, this.scene.audioManager._volume + 0.1));
+        this._drawAudioMiniPanel();
+      }
+    });
+
+    const minusBtn = this.scene.add.text(x + w - 25, y + 25, '-', {
+      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#ff8844',
+      fontStyle: 'bold'
+    }).setScrollFactor(0).setDepth(53).setInteractive({ useHandCursor: true });
+    minusBtn.on('pointerdown', () => {
+      if (this.scene.audioManager) {
+        this.scene.audioManager.setVolume(Math.max(0, this.scene.audioManager._volume - 0.1));
+        this._drawAudioMiniPanel();
+      }
+    });
+
+    this._audioMiniTexts = [label, hint, plusBtn, minusBtn];
+  }
+
   destroy() {
     if (this._timerEvent) this._timerEvent.destroy();
     for (const t of this._weaponTexts) {
@@ -328,5 +504,11 @@ class HUD {
     this._weaponTexts = [];
     if (this._hpGraphics) this._hpGraphics.destroy();
     if (this._xpGraphics) this._xpGraphics.destroy();
+    if (this._swapIndicator) this._swapIndicator.destroy();
+    if (this._damageDirGraphics) this._damageDirGraphics.destroy();
+    if (this._audioMiniPanel) this._audioMiniPanel.destroy();
+    for (const t of this._audioMiniTexts) {
+      if (t && t.active) t.destroy();
+    }
   }
 }

@@ -29,50 +29,48 @@ class NecromancerEnemy extends Phaser.Physics.Arcade.Sprite {
     this._animTimer = 0;
     this._summonFlashTimer = 0;
 
-    // Visual — own graphics (like SummonerEnemy pattern)
-    this._graphics = scene.add.graphics();
-    this._graphics.setDepth(5);
-    this._drawVisual();
+    // Visual — uses shared batch graphics (same as base Enemy)
+    this._graphics = null; // no individual graphics — batch rendering
   }
 
   _drawVisual() {
-    const g = this._graphics;
-    g.clear();
+    const gfx = Enemy.getBatchGraphics();
+    if (!gfx) return;
+    const px = this.x;
+    const py = this.y;
     const hw = 14;
 
     // Dark aura ring
-    g.lineStyle(1.5, 0x7700bb, 0.3);
-    g.strokeCircle(0, 0, hw + 5);
+    gfx.lineStyle(1.5, 0x7700bb, 0.3);
+    gfx.strokeCircle(px, py, hw + 5);
 
     // Robed body — dark purple triangle-ish
-    g.fillStyle(0x550088, 0.9);
-    g.fillTriangle(0, -hw, -hw, hw * 0.8, hw, hw * 0.8);
+    gfx.fillStyle(0x550088, 0.9);
+    gfx.fillTriangle(px, py - hw, px - hw, py + hw * 0.8, px + hw, py + hw * 0.8);
 
     // Hood/cowl
-    g.fillStyle(0x330066, 1);
-    g.fillCircle(0, -hw * 0.3, hw * 0.7);
+    gfx.fillStyle(0x330066, 1);
+    gfx.fillCircle(px, py - hw * 0.3, hw * 0.7);
 
     // Glowing eyes
-    g.fillStyle(0xff00ff, 1);
-    g.fillCircle(-4, -hw * 0.35, 2.5);
-    g.fillCircle(4, -hw * 0.35, 2.5);
+    gfx.fillStyle(0xff00ff, 1);
+    gfx.fillCircle(px - 4, py - hw * 0.35, 2.5);
+    gfx.fillCircle(px + 4, py - hw * 0.35, 2.5);
 
     // Skull staff indicator
-    g.fillStyle(0xccccaa, 0.8);
-    g.fillRect(hw * 0.5, -hw * 0.2, 3, hw * 1.2);
-    g.fillStyle(0xffffff, 0.9);
-    g.fillCircle(hw * 0.5 + 1.5, -hw * 0.3, 4);
-    g.fillStyle(0x000000, 0.7);
-    g.fillCircle(hw * 0.5, -hw * 0.35, 1);
-    g.fillCircle(hw * 0.5 + 3, -hw * 0.35, 1);
+    gfx.fillStyle(0xccccaa, 0.8);
+    gfx.fillRect(px + hw * 0.5, py - hw * 0.2, 3, hw * 1.2);
+    gfx.fillStyle(0xffffff, 0.9);
+    gfx.fillCircle(px + hw * 0.5 + 1.5, py - hw * 0.3, 4);
+    gfx.fillStyle(0x000000, 0.7);
+    gfx.fillCircle(px + hw * 0.5, py - hw * 0.35, 1);
+    gfx.fillCircle(px + hw * 0.5 + 3, py - hw * 0.35, 1);
 
     // Summon flash (brief glow after summoning)
     if (this._summonFlashTimer > 0) {
-      g.fillStyle(0xbb66ee, this._summonFlashTimer / 300);
-      g.fillCircle(0, 0, hw + 8);
+      gfx.fillStyle(0xbb66ee, this._summonFlashTimer / 300);
+      gfx.fillCircle(px, py, hw + 8);
     }
-
-    g.setPosition(this.x, this.y);
   }
 
   update(time, delta, player, speedMultiplier) {
@@ -160,33 +158,24 @@ class NecromancerEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   _drawHPBar() {
-    const g = this._graphics;
+    const gfx = Enemy.getBatchGraphics();
+    if (!gfx) return;
     const barW = 32;
     const barH = 3;
-    const y = -20;
+    const px = this.x;
+    const py = this.y - 20;
     const ratio = Math.max(0, this.hp / this.maxHp);
 
-    g.fillStyle(0x333333, 0.8);
-    g.fillRect(-barW / 2, y, barW, barH);
+    gfx.fillStyle(0x333333, 0.8);
+    gfx.fillRect(px - barW / 2, py, barW, barH);
     const c = ratio > 0.5 ? 0x22cc22 : ratio > 0.25 ? 0xcccc22 : 0xcc2222;
-    g.fillStyle(c, 1);
-    g.fillRect(-barW / 2, y, barW * ratio, barH);
+    gfx.fillStyle(c, 1);
+    gfx.fillRect(px - barW / 2, py, barW * ratio, barH);
   }
 
   takeDamage(amount) {
     this.hp -= amount;
-
-    // Flash
-    this._graphics.clear();
-    this._graphics.fillStyle(0xffffff, 0.9);
-    this._graphics.fillCircle(0, 0, 14);
-
     this._spawnDamageNumber(amount);
-
-    this.scene.time.delayedCall(80, () => {
-      if (this.active) this._drawVisual();
-    });
-
     if (this.hp <= 0) {
       this.onDeath();
     }
@@ -261,7 +250,6 @@ class NecromancerEnemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   destroy() {
-    if (this._graphics) this._graphics.destroy();
     super.destroy();
   }
 }
@@ -291,33 +279,31 @@ class SkeletonMinion extends Phaser.Physics.Arcade.Sprite {
     this._damageCooldown = false;
     this._animTimer = Math.random() * Math.PI * 2;
 
-    // Use batch graphics if available (like base Enemy), otherwise own graphics
-    this._graphics = scene.add.graphics();
-    this._graphics.setDepth(5);
-    this._drawVisual();
+    // Use shared batch graphics (same as base Enemy)
+    this._graphics = null;
   }
 
   _drawVisual() {
-    const g = this._graphics;
-    g.clear();
+    const gfx = Enemy.getBatchGraphics();
+    if (!gfx) return;
+    const px = this.x;
+    const py = this.y;
     const hw = 8;
     const hh = 10;
 
     // Skeleton body — bone-colored rectangle
-    g.fillStyle(0xccccaa, 0.9);
-    g.fillRect(-hw, -hh, this.size[0], this.size[1]);
+    gfx.fillStyle(0xccccaa, 0.9);
+    gfx.fillRect(px - hw, py - hh, this.size[0], this.size[1]);
 
     // Skull face
-    g.fillStyle(0x000000, 0.6);
-    g.fillCircle(-3, -4, 2);
-    g.fillCircle(3, -4, 2);
-    g.fillRect(-3, 2, 6, 2);
+    gfx.fillStyle(0x000000, 0.6);
+    gfx.fillCircle(px - 3, py - 4, 2);
+    gfx.fillCircle(px + 3, py - 4, 2);
+    gfx.fillRect(px - 3, py + 2, 6, 2);
 
     // Purple tint (necromancer link)
-    g.fillStyle(0x7700bb, 0.15);
-    g.fillRect(-hw, -hh, this.size[0], this.size[1]);
-
-    g.setPosition(this.x, this.y);
+    gfx.fillStyle(0x7700bb, 0.15);
+    gfx.fillRect(px - hw, py - hh, this.size[0], this.size[1]);
   }
 
   update(time, delta, player, speedMultiplier) {
@@ -339,21 +325,11 @@ class SkeletonMinion extends Phaser.Physics.Arcade.Sprite {
     const len = Math.sqrt(dirX * dirX + dirY * dirY);
 
     this.setVelocity(dirX / len * this.speed * spdMult, dirY / len * this.speed * spdMult);
-    this._graphics.setPosition(this.x, this.y);
+    this._drawVisual();
   }
 
   takeDamage(amount) {
     this.hp -= amount;
-
-    // Flash
-    this._graphics.clear();
-    this._graphics.fillStyle(0xffffff, 0.9);
-    this._graphics.fillRect(-8, -10, 16, 20);
-
-    this.scene.time.delayedCall(60, () => {
-      if (this.active) this._drawVisual();
-    });
-
     if (this.hp <= 0) this.onDeath();
   }
 
@@ -387,7 +363,6 @@ class SkeletonMinion extends Phaser.Physics.Arcade.Sprite {
   }
 
   destroy() {
-    if (this._graphics) this._graphics.destroy();
     super.destroy();
   }
 }

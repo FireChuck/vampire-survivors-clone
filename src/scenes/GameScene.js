@@ -63,6 +63,9 @@ class GameScene extends Phaser.Scene {
     this.abilitySystem = new AbilitySystem(this, this.player);
     this.player.abilitySystem = this.abilitySystem;
 
+    // Crit System
+    this.critSystem = new CritSystem(this);
+
     // Performance Systems
     this.spatialGrid = new SpatialGrid(128, GAME_CONFIG.worldWidth, GAME_CONFIG.worldHeight);
 
@@ -134,6 +137,9 @@ class GameScene extends Phaser.Scene {
 
     this.spawnManager = new SpawnManager(this);
 
+    // Synergy System (needs abilitySystem + weaponManager)
+    this.synergySystem = new SynergySystem(this, this.abilitySystem, this.weaponManager);
+
     this.biomeManager = new BiomeManager(this);
 
     // Environmental Hazards System
@@ -151,6 +157,9 @@ class GameScene extends Phaser.Scene {
 
     // Achievement Toast System
     this.achievementToast = new AchievementToast(this);
+
+    // Performance Overlay (FPS Benchmark)
+    this.performanceOverlay = new PerformanceOverlay(this);
 
     // ── Special Events System ──
     this._specialEvent = {
@@ -172,6 +181,9 @@ class GameScene extends Phaser.Scene {
 
     // Particle System
     this.particleSystem = new ParticleSystem(this);
+
+    // Vignette System (low HP warning)
+    this.vignetteSystem = new VignetteSystem(this);
 
     // State
     this.score = 0;
@@ -200,21 +212,33 @@ class GameScene extends Phaser.Scene {
     this.isPaused = false;
     this._pauseOverlay = this.add.rectangle(
       this.scale.width / 2, this.scale.height / 2,
-      this.scale.width, this.scale.height, 0x000000, 0.5
+      this.scale.width, this.scale.height, 0x000000, 0.6
     ).setScrollFactor(0).setDepth(200).setVisible(false);
-    this._pauseText = this.add.text(this.scale.width / 2, this.scale.height / 2, '⏸ PAUSED', {
-      fontSize: '48px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
-      fontStyle: 'bold', stroke: '#000000', strokeThickness: 6
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(201).setVisible(false);
-    this._pauseHint = this.add.text(this.scale.width / 2, this.scale.height / 2 + 50, 'Press P or ESC to resume', {
-      fontSize: '16px', fontFamily: 'Arial, sans-serif', color: '#aaaaaa',
-      stroke: '#000000', strokeThickness: 2
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(201).setVisible(false);
+    this._pauseContainer = null; // Will hold pause menu UI
 
     if (this.input.keyboard) {
       this.input.keyboard.on('keydown-P', () => this._togglePause());
       this.input.keyboard.on('keydown-ESC', () => this._togglePause());
+      this.input.keyboard.on('keydown-N', () => {
+        if (this.performanceOverlay) this.performanceOverlay.startBenchmark();
+      });
     }
+
+    // ── QoL: Enemy Spawn Warning System ──
+    this._spawnWarnings = []; // { x, y, type, timer }
+    this._spawnWarningGraphics = this.add.graphics().setDepth(44).setScrollFactor(0);
+
+    // ── QoL: Performance Auto-Adjust ──
+    this._perfAutoAdjust = {
+      enabled: true,
+      particleReduction: 1.0,    // 1.0 = normal, lower = fewer particles
+      lowFPSThreshold: 30,
+      checkInterval: 3000,
+      lastCheck: 0
+    };
+
+    // ── QoL: Touch Sensitivity Setting ──
+    this._touchSensitivity = 1.0; // 0.5 to 2.0
 
     // ── Kill Streak System ──
     this._killStreak = { count: 0, lastKillTime: 0, comboTimeout: 2000, scoreBonus: 0 };
@@ -266,6 +290,9 @@ class GameScene extends Phaser.Scene {
     // Particle system
     this.particleSystem.update(delta);
 
+    // Vignette system (low HP warning)
+    if (this.vignetteSystem) this.vignetteSystem.update(delta);
+
     // Player movement
     const move = this.inputManager.getMovementVector();
     this.player.move(move.x, move.y);
@@ -301,6 +328,11 @@ class GameScene extends Phaser.Scene {
     // Ability system
     if (this.abilitySystem) {
       this.abilitySystem.update(time, delta);
+    }
+
+    // Synergy system
+    if (this.synergySystem) {
+      this.synergySystem.update(time, delta);
     }
 
     // Spawning
@@ -393,6 +425,9 @@ class GameScene extends Phaser.Scene {
 
     if (this.minimap) this.minimap.update();
 
+    // Performance overlay tick (lightweight — just frame counter)
+    if (this.performanceOverlay) this.performanceOverlay.tick(time);
+
     // T4.2: Auto-save every 30 seconds with toast
     if (!this._lastAutoSave) this._lastAutoSave = 0;
     if (time - this._lastAutoSave > 30000) {
@@ -407,6 +442,16 @@ class GameScene extends Phaser.Scene {
     // QoL updates
     this._updateBossHPBar();
     this._updatePickupRadius();
+    this._updateSpawnWarnings(delta);
+    this._updatePerformanceAutoAdjust(time);
+
+    // QoL: Clear damage direction indicators each frame
+    if (this.hud) this.hud.clearDamageDirections();
+
+    // QoL: XP level preview
+    if (this.hud) {
+      this.hud.updateXPPreview(this.player.xp, this.upgradeSystem.xpToNext, this.player.level);
+    }
   }
 
   // ── T4.1: DPS Tracking ──
@@ -462,11 +507,14 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  // ── QoL: Auto-Pickup Radius ──
+  // ── QoL: Auto-Pickup Radius (scales with level + pickup upgrades) ──
 
   _updatePickupRadius() {
-    const bonus = Math.floor(this.player.level * 5);
-    this.player.pickupRange = 60 + bonus;
+    // Base 60 + level scaling (diminishing returns per level)
+    const levelBonus = Math.floor(this.player.level * 5);
+    // Additional scaling: every 10 levels gives a big boost
+    const milestoneBonus = Math.floor(this.player.level / 10) * 15;
+    this.player.pickupRange = 60 + levelBonus + milestoneBonus;
   }
 
   // ── Stress Test Mode ──
@@ -516,22 +564,191 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(5000, () => banner.destroy());
   }
 
-  // ── QoL: Pause System ──
+  // ── QoL: Pause System with Menu ──
 
   _togglePause() {
     if (this.gameOverTriggered) return;
     this.isPaused = !this.isPaused;
     this._pauseOverlay.setVisible(this.isPaused);
-    this._pauseText.setVisible(this.isPaused);
-    this._pauseHint.setVisible(this.isPaused);
 
     if (this.isPaused) {
       this.physics.world.pause();
       this.time.pause();
+      this._showPauseMenu();
     } else {
       this.physics.world.resume();
       this.time.resume();
+      this._closePauseMenu();
     }
+  }
+
+  _showPauseMenu() {
+    if (this._pauseContainer) this._pauseContainer.destroy();
+
+    const scene = this;
+    const sw = this.scale.width;
+    const sh = this.scale.height;
+    this._pauseContainer = this.add.container(0, 0).setDepth(201).setScrollFactor(0);
+
+    // Title
+    const title = this.add.text(sw / 2, sh * 0.2, '⏸ PAUSED', {
+      fontSize: '42px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 6
+    }).setOrigin(0.5);
+    this._pauseContainer.add(title);
+
+    // Menu buttons
+    const btnW = 220;
+    const btnH = 48;
+    const btnGap = 16;
+    const startY = sh * 0.35;
+    const buttons = [
+      { label: '▶ Resume', color: 0x44ff44, action: () => this._togglePause() },
+      { label: '🔊 Audio Controls', color: 0x4488ff, action: () => this._showAudioControls() },
+      { label: '📊 Benchmark', color: 0xffaa00, action: () => {
+        if (this.performanceOverlay) this.performanceOverlay.startBenchmark();
+        this._togglePause();
+      }},
+      { label: '🏠 Quit to Menu', color: 0xff4444, action: () => {
+        this.isPaused = false;
+        this.physics.world.resume();
+        this.time.resume();
+        this._closePauseMenu();
+        this.scene.stop('GameScene');
+        this.scene.start('MenuScene');
+      }}
+    ];
+
+    buttons.forEach((btn, i) => {
+      const y = startY + i * (btnH + btnGap);
+      const bg = this.add.rectangle(sw / 2, y, btnW, btnH, 0x2a2a4a, 0.95)
+        .setStrokeStyle(2, btn.color)
+        .setInteractive({ useHandCursor: true });
+      const text = this.add.text(sw / 2, y, btn.label, {
+        fontSize: '16px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
+        fontStyle: 'bold', stroke: '#000000', strokeThickness: 2
+      }).setOrigin(0.5);
+
+      bg.on('pointerover', () => {
+        bg.setFillStyle(0x3a3a6a);
+        this.tweens.add({ targets: bg, scaleX: 1.05, scaleY: 1.05, duration: 100 });
+      });
+      bg.on('pointerout', () => {
+        bg.setFillStyle(0x2a2a4a);
+        this.tweens.add({ targets: bg, scaleX: 1, scaleY: 1, duration: 100 });
+      });
+      bg.on('pointerdown', btn.action);
+
+      this._pauseContainer.add([bg, text]);
+    });
+
+    // Hint
+    const hint = this.add.text(sw / 2, sh * 0.85, 'Press P or ESC to resume', {
+      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#888888',
+      stroke: '#000000', strokeThickness: 2
+    }).setOrigin(0.5);
+    this._pauseContainer.add(hint);
+  }
+
+  _closePauseMenu() {
+    if (this._pauseContainer) {
+      this._pauseContainer.destroy();
+      this._pauseContainer = null;
+    }
+  }
+
+  _showAudioControls() {
+    if (this._pauseContainer) this._pauseContainer.destroy();
+
+    const sw = this.scale.width;
+    const sh = this.scale.height;
+    this._pauseContainer = this.add.container(0, 0).setDepth(201).setScrollFactor(0);
+
+    // Back button
+    const backBtn = this.add.text(20, 20, '← Back', {
+      fontSize: '16px', fontFamily: 'Arial, sans-serif', color: '#4488ff',
+      fontStyle: 'bold', stroke: '#000', strokeThickness: 2
+    }).setInteractive({ useHandCursor: true });
+    backBtn.on('pointerdown', () => this._showPauseMenu());
+    backBtn.on('pointerover', () => backBtn.setStyle({ color: '#66aaff' }));
+    backBtn.on('pointerout', () => backBtn.setStyle({ color: '#4488ff' }));
+    this._pauseContainer.add(backBtn);
+
+    // Title
+    const title = this.add.text(sw / 2, sh * 0.15, '🔊 Audio Controls', {
+      fontSize: '28px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
+      fontStyle: 'bold', stroke: '#000', strokeThickness: 4
+    }).setOrigin(0.5);
+    this._pauseContainer.add(title);
+
+    // Sliders
+    const self = this;
+    const sliders = [
+      { label: 'Master Volume', key: 'master', get: () => self.audioManager._volume, set: (v) => self.audioManager.setVolume(v) },
+      { label: 'SFX Volume', key: 'sfx', get: () => self.audioManager._sfxVolume, set: (v) => self.audioManager.setSFXVolume(v) },
+      { label: 'Music Volume', key: 'music', get: () => self.audioManager._musicVolume, set: (v) => self.audioManager.setMusicVolume(v) }
+    ];
+
+    const sliderW = 250;
+    const sliderH = 16;
+    const sliderGap = 60;
+    const sliderStartY = sh * 0.3;
+
+    sliders.forEach((slider, i) => {
+      const y = sliderStartY + i * sliderGap;
+      const cx = sw / 2;
+
+      // Label
+      const lbl = this.add.text(cx, y - 20, slider.label, {
+        fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#cccccc'
+      }).setOrigin(0.5);
+      this._pauseContainer.add(lbl);
+
+      // Background track
+      const track = this.add.rectangle(cx, y + 10, sliderW, sliderH, 0x333333)
+        .setStrokeStyle(1, 0x555555);
+      this._pauseContainer.add(track);
+
+      // Fill bar
+      const val = slider.get();
+      const fill = this.add.rectangle(cx - sliderW / 2, y + 10, sliderW * val, sliderH, 0x4488ff)
+        .setOrigin(0, 0.5);
+      this._pauseContainer.add(fill);
+
+      // Value text
+      const valText = this.add.text(cx + sliderW / 2 + 15, y + 10, Math.round(val * 100) + '%', {
+        fontSize: '12px', fontFamily: 'monospace', color: '#aaa'
+      }).setOrigin(0, 0.5);
+      this._pauseContainer.add(valText);
+
+      // Make track interactive
+      track.setInteractive({ useHandCursor: true });
+      track.on('pointerdown', (pointer) => {
+        const localX = pointer.x - (cx - sliderW / 2);
+        const ratio = Math.max(0, Math.min(1, localX / sliderW));
+        slider.set(ratio);
+        fill.width = sliderW * ratio;
+        valText.setText(Math.round(ratio * 100) + '%');
+      });
+      track.on('pointermove', (pointer) => {
+        if (!pointer.isDown) return;
+        const localX = pointer.x - (cx - sliderW / 2);
+        const ratio = Math.max(0, Math.min(1, localX / sliderW));
+        slider.set(ratio);
+        fill.width = sliderW * ratio;
+        valText.setText(Math.round(ratio * 100) + '%');
+      });
+
+      // Mute toggle
+      const muteText = this.add.text(cx + sliderW / 2 + 55, y + 10, '🔇', {
+        fontSize: '18px'
+      }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+      muteText.on('pointerdown', () => {
+        const muted = self.audioManager.toggleMute();
+        muteText.setText(muted ? '🔇' : '🔊');
+      });
+      this._pauseContainer.add(muteText);
+    });
   }
 
   // ── QoL: Start Countdown ──
@@ -872,6 +1089,91 @@ class GameScene extends Phaser.Scene {
       }
 
       e._drawVisual(gfx);
+    }
+  }
+
+  // ── QoL: Enemy Spawn Warning ──
+
+  addSpawnWarning(x, y, type) {
+    if (this._spawnWarnings.length >= 10) return;
+    this._spawnWarnings.push({ x, y, type, timer: 1500 });
+  }
+
+  _updateSpawnWarnings(delta) {
+    const g = this._spawnWarningGraphics;
+    g.clear();
+
+    for (let i = this._spawnWarnings.length - 1; i >= 0; i--) {
+      const w = this._spawnWarnings[i];
+      w.timer -= delta;
+      if (w.timer <= 0) {
+        this._spawnWarnings.splice(i, 1);
+        continue;
+      }
+
+      // Convert world pos to screen pos
+      const cam = this.cameras.main;
+      const screenX = w.x - cam.scrollX;
+      const screenY = w.y - cam.scrollY;
+      const sw = this.scale.width;
+      const sh = this.scale.height;
+
+      // Only show if near screen edge (not on-screen)
+      const margin = 80;
+      if (screenX > margin && screenX < sw - margin && screenY > margin && screenY < sh - margin) {
+        continue;
+      }
+
+      // Clamp to screen edge
+      const clampX = Math.max(30, Math.min(sw - 30, screenX));
+      const clampY = Math.max(30, Math.min(sh - 30, screenY));
+
+      // Pulsing warning indicator
+      const alpha = 0.4 + 0.3 * Math.sin(Date.now() * 0.008);
+      const color = w.type === 'boss' ? 0xff2222 : w.type === 'elite' ? 0xff8800 : 0xff4444;
+      const size = w.type === 'boss' ? 10 : 6;
+
+      // Draw warning exclamation
+      g.fillStyle(color, alpha);
+      g.fillCircle(clampX, clampY, size);
+      g.fillStyle(0xffffff, alpha);
+      g.fillRect(clampX - 1, clampY - size * 0.5, 2, size * 0.4);
+
+      // Flash effect: expanding ring
+      const ringProgress = 1 - (w.timer / 1500);
+      const ringAlpha = Math.max(0, 0.5 * (1 - ringProgress));
+      g.lineStyle(2, color, ringAlpha);
+      g.strokeCircle(clampX, clampY, size + ringProgress * 20);
+    }
+  }
+
+  // ── QoL: Performance Auto-Adjust ──
+
+  _updatePerformanceAutoAdjust(time) {
+    if (!this._perfAutoAdjust.enabled) return;
+    if (time - this._perfAutoAdjust.lastCheck < this._perfAutoAdjust.checkInterval) return;
+    this._perfAutoAdjust.lastCheck = time;
+
+    if (this._fpsValue < this._perfAutoAdjust.lowFPSThreshold) {
+      // Reduce particle quality
+      this._perfAutoAdjust.particleReduction = Math.max(0.2, this._perfAutoAdjust.particleReduction - 0.2);
+      if (this.particleSystem) {
+        this.particleSystem._maxActive = Math.max(100, Math.floor(500 * this._perfAutoAdjust.particleReduction));
+      }
+    } else if (this._fpsValue >= 50 && this._perfAutoAdjust.particleReduction < 1.0) {
+      // Gradually restore quality
+      this._perfAutoAdjust.particleReduction = Math.min(1.0, this._perfAutoAdjust.particleReduction + 0.1);
+      if (this.particleSystem) {
+        this.particleSystem._maxActive = Math.floor(500 * this._perfAutoAdjust.particleReduction);
+      }
+    }
+  }
+
+  // ── QoL: Touch Sensitivity ──
+  setTouchSensitivity(value) {
+    this._touchSensitivity = Math.max(0.5, Math.min(2.0, value));
+    if (this.inputManager) {
+      this.inputManager._sensitivityMultiplier = this._touchSensitivity;
     }
   }
 }

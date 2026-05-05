@@ -8,6 +8,10 @@ class ParticleSystem {
     this._graphics = scene.add.graphics();
     this._graphics.setDepth(25);
     this._pool = [];
+    this._maxActive = 500; // Hard cap on active particles
+    this._poolMax = 200;   // Pre-alloc pool size limit
+    this._recycledTotal = 0;
+    this._spawnsDenied = 0;
   }
 
   // ── Emit Methods ──
@@ -117,7 +121,7 @@ class ParticleSystem {
     }
 
     // Boss death: add a massive secondary explosion regardless of variant
-    if (type === 'boss' || type === 'necromancer' || type === 'dragon' || type === 'giant') {
+    if (type === 'boss' || type === 'necromancer' || type === 'dragon' || type === 'giant' || type === 'tank') {
       this.emitBossDeath(x, y, c);
     }
   }
@@ -356,10 +360,20 @@ class ParticleSystem {
   // ── Internal ──
 
   _add(config) {
+    // Enforce hard cap — skip spawn if at limit
+    if (this._particles.length >= this._maxActive) {
+      this._spawnsDenied++;
+      return;
+    }
+
     // Reuse from pool or create new
-    const p = this._pool.length > 0
-      ? this._pool.pop()
-      : { x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 0, size: 0, color: 0, alpha: 1, shrink: false, grow: false, gravity: 0 };
+    let p;
+    if (this._pool.length > 0) {
+      p = this._pool.pop();
+      this._recycledTotal++;
+    } else {
+      p = { x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 0, size: 0, color: 0, alpha: 1, shrink: false, grow: false, gravity: 0 };
+    }
 
     Object.assign(p, config);
     this._particles.push(p);
@@ -379,7 +393,10 @@ class ParticleSystem {
 
       if (p.life <= 0) {
         this._particles.splice(i, 1);
-        this._pool.push(p);
+        // Trim pool to prevent unbounded growth
+        if (this._pool.length < this._poolMax) {
+          this._pool.push(p);
+        }
         continue;
       }
 

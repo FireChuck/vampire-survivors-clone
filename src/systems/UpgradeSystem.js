@@ -169,7 +169,7 @@ class UpgradeSystem {
         ease: 'Back.easeOut'
       });
 
-      // ── Hover: scale up + glow border ──
+      // ── Hover: scale up + glow border + tooltip ──
       card.on('pointerover', () => {
         card.setStrokeStyle(3, 0xffd700);
         this.scene.tweens.add({
@@ -178,6 +178,8 @@ class UpgradeSystem {
           duration: 150,
           ease: 'Back.easeOut'
         });
+        // QoL: Stat tooltip on hover
+        this._showUpgradeTooltip(upgrade, cx, cy + cardHeight / 2 + 15);
       });
       card.on('pointerout', () => {
         card.setStrokeStyle(2, rarityGlow);
@@ -186,6 +188,7 @@ class UpgradeSystem {
           scaleX: 1, scaleY: 1,
           duration: 150
         });
+        this._hideUpgradeTooltip();
       });
       card.on('pointerdown', () => {
         // Selection feedback: card glows and scales up, then fade
@@ -329,11 +332,80 @@ class UpgradeSystem {
       this._timerEvent.destroy();
       this._timerEvent = null;
     }
+    this._hideUpgradeTooltip();
     if (this._uiContainer) {
       this._uiContainer.destroy();
       this._uiContainer = null;
     }
     this.paused = false;
+  }
+
+  // ── QoL: Stat Tooltip on Hover ──
+
+  _showUpgradeTooltip(upgrade, x, y) {
+    this._hideUpgradeTooltip();
+
+    const scene = this.scene;
+    const player = scene.player;
+
+    // Build tooltip content based on stat type
+    let details = '';
+    if (upgrade.stat) {
+      switch (upgrade.stat) {
+        case 'maxHp':
+          details = `Current: ${Math.floor(player.maxHp)} → ${Math.floor(player.maxHp + (upgrade.value || 20))}`;
+          break;
+        case 'speed':
+          details = `Current: ${Math.floor(player.stats.speed)} → ${Math.floor(player.stats.speed * (upgrade.value || 1) + (upgrade.value > 1 ? upgrade.value : 15))}`;
+          break;
+        case 'damageMultiplier':
+          details = `Current: x${player.stats.damageMultiplier.toFixed(1)} → x${(player.stats.damageMultiplier + (upgrade.value || 0.2)).toFixed(1)}`;
+          break;
+        case 'armor':
+          details = `Current: ${Math.round(player.stats.armor * 100)}% reduction → ${Math.round((player.stats.armor + (upgrade.value || 0.15)) * 100)}%`;
+          break;
+        case 'hpRegen':
+          details = `Current: ${player.stats.hpRegen.toFixed(1)}/s → ${(player.stats.hpRegen + (upgrade.value || 0.5)).toFixed(1)}/s`;
+          break;
+        case 'xpMultiplier':
+          details = `Current: x${player.stats.xpMultiplier.toFixed(1)} → x${(player.stats.xpMultiplier * (upgrade.value > 1 ? upgrade.value : 1.2)).toFixed(1)}`;
+          break;
+        case 'cooldownReduction':
+          details = `Current: ${Math.round(player.stats.cooldownReduction * 100)}% → ${Math.round((player.stats.cooldownReduction + (upgrade.value || 0.1)) * 100)}%`;
+          break;
+        case 'pickupRange':
+          details = `Current: ${Math.floor(player.pickupRange)}px → ${Math.floor(player.pickupRange * (upgrade.value > 1 ? upgrade.value : 1.25))}px`;
+          break;
+        default:
+          details = upgrade.description || '';
+      }
+    } else if (upgrade.category === 'ability') {
+      details = 'New ability unlock!';
+    } else {
+      details = upgrade.description || '';
+    }
+
+    if (!details) return;
+
+    // Background
+    const tw = 200;
+    const th = 28;
+    const tx = Math.max(tw / 2 + 5, Math.min(scene.scale.width - tw / 2 - 5, x));
+    const ty = Math.min(scene.scale.height - th - 10, y);
+
+    this._tooltipBg = scene.add.rectangle(tx, ty, tw, th, 0x1a1a3a, 0.95)
+      .setStrokeStyle(1, 0x4488ff, 0.8)
+      .setOrigin(0.5).setScrollFactor(0).setDepth(250);
+
+    this._tooltipText = scene.add.text(tx, ty, details, {
+      fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#88ccff',
+      wordWrap: { width: tw - 10 }
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(251);
+  }
+
+  _hideUpgradeTooltip() {
+    if (this._tooltipBg) { this._tooltipBg.destroy(); this._tooltipBg = null; }
+    if (this._tooltipText) { this._tooltipText.destroy(); this._tooltipText = null; }
   }
 
   _defaultUpgrades() {

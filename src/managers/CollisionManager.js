@@ -89,6 +89,11 @@ class CollisionManager {
     if (scene.screenShake) scene.screenShake.shake('playerHit');
     if (scene.damageNumbers) scene.damageNumbers.show(scene.player.x, scene.player.y - 20, actual, 'damage');
 
+    // QoL: Damage direction indicator
+    if (scene.hud && scene.hud.showDamageDirection) {
+      scene.hud.showDamageDirection(enemy.x, enemy.y);
+    }
+
     if (scene.hud) {
       scene.hud.updateHP(scene.player.hp, scene.player.maxHp);
     }
@@ -106,9 +111,22 @@ class CollisionManager {
     if (scene.particleSystem) scene.particleSystem.emitHit(enemy.x, enemy.y, proj.color || 0x88ccff);
     if (scene.audioManager) scene.audioManager.playHit();
 
+    // Crit system integration
+    let finalDamage = proj.damage || 10;
+    let isCrit = false;
+
+    if (scene.critSystem) {
+      const critResult = scene.critSystem.rollCrit(finalDamage);
+      finalDamage = critResult.damage;
+      isCrit = critResult.isCrit;
+
+      if (isCrit) {
+        scene.critSystem.applyCritEffects(enemy.x, enemy.y, finalDamage);
+      }
+    }
+
     if (scene.damageNumbers) {
-      const isCrit = proj.damage && proj.damage >= (enemy.maxHp * 0.25);
-      scene.damageNumbers.show(enemy.x, enemy.y - 10, proj.damage || 10, isCrit ? 'crit' : 'damage');
+      scene.damageNumbers.show(enemy.x, enemy.y - 10, finalDamage, isCrit ? 'crit' : 'damage');
     }
 
     // T4.1: Record damage for DPS tracking
@@ -153,6 +171,8 @@ class CollisionManager {
       scene.inputManager.destroy();
       scene.upgradeSystem.destroy();
       if (scene.abilitySystem) scene.abilitySystem.destroy();
+      if (scene.synergySystem) scene.synergySystem.destroy();
+      if (scene.vignetteSystem) scene.vignetteSystem.destroy();
       if (scene.hazardSystem) scene.hazardSystem.destroy();
       scene.hud.destroy();
       if (scene.damageNumbers) scene.damageNumbers.destroy();
