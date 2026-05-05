@@ -39,6 +39,16 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this._bounceTimer = 0;
     this._bounceVy = 0;
 
+    // ── Pathfinding / Steering state ──
+    this._steerSepX = 0;
+    this._steerSepY = 0;
+    this._wanderAngle = Math.random() * Math.PI * 2;
+    this._wanderTimer = 0;
+    this._flankDir = 1; // 1 = clockwise, -1 = counter-clockwise
+    if (Math.random() > 0.5) this._flankDir = -1;
+    this._predictTargetX = 0;
+    this._predictTargetY = 0;
+
     // Visual: uses shared batch graphics from scene (set via Enemy.setBatchGraphics)
     this._graphics = null; // no individual graphics — batch rendering
     this._flashTimer = 0;
@@ -157,6 +167,79 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  // ── Steering: Separation (avoid overlapping) ──
+  _steerSeparation(enemies) {
+    let sepX = 0, sepY = 0;
+    const sepRadius = 30; // pixels
+    let count = 0;
+
+    for (const other of enemies) {
+      if (other === this || !other.active) continue;
+      const dx = this.x - other.x;
+      const dy = this.y - other.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < sepRadius * sepRadius && d2 > 0.01) {
+        const d = Math.sqrt(d2);
+        const force = (sepRadius - d) / sepRadius;
+        sepX += (dx / d) * force;
+        sepY += (dy / d) * force;
+        count++;
+      }
+    }
+
+    if (count > 0) {
+      this._steerSepX = (sepX / count) * 0.8;
+      this._steerSepY = (sepY / count) * 0.8;
+    } else {
+      this._steerSepX *= 0.9;
+      this._steerSepY *= 0.9;
+    }
+  }
+
+  // ── Steering: Wander (slight random drift) ──
+  _steerWander(delta) {
+    this._wanderTimer += delta;
+    if (this._wanderTimer > 500 + Math.random() * 500) {
+      this._wanderAngle += (Math.random() - 0.5) * 1.2;
+      this._wanderTimer = 0;
+    }
+    return {
+      x: Math.cos(this._wanderAngle) * 0.15,
+      y: Math.sin(this._wanderAngle) * 0.15
+    };
+  }
+
+  // ── Steering: Flanking (approach from player's movement direction) ──
+  _steerFlank(player) {
+    // Use perpendicular to player's velocity to approach from side
+    const vx = player.body.velocity.x || 0;
+    const vy = player.body.velocity.y || 0;
+    const vLen = Math.sqrt(vx * vx + vy * vy);
+    if (vLen < 20) return { x: 0, y: 0 }; // Player stationary, no flank
+
+    // Perpendicular direction
+    const perpX = -vy / vLen;
+    const perpY = vx / vLen;
+    const strength = 0.35;
+
+    return {
+      x: perpX * this._flankDir * strength,
+      y: perpY * this._flankDir * strength
+    };
+  }
+
+  // ── Steering: Predictive targeting (for bosses) ──
+  _steerPredict(player, dist) {
+    if (dist < 50) return { x: 0, y: 0 }; // Too close, aim direct
+    const vx = player.body.velocity.x || 0;
+    const vy = player.body.velocity.y || 0;
+    // Predict where player will be in ~500ms
+    const leadTime = Math.min(500, dist * 1.5);
+    this._predictTargetX = player.x + vx * (leadTime / 1000);
+    this._predictTargetY = player.y + vy * (leadTime / 1000);
+    return { x: this._predictTargetX, y: this._predictTargetY };
+  }
+
   update(time, delta, player, speedMultiplier) {
     if (!player || !player.active) return;
 
@@ -169,8 +252,23 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 1) return;
 
-    const baseDirX = dx / dist;
-    const baseDirY = dy / dist;
+    // ── Run separation steering against all enemies ──
+    this._steerSeparation(this.scene.enemies || []);
+
+    // Determine chase target (direct or predicted for bosses)
+    let targetX = player.x;
+    let targetY = player.y;
+    if (this.isBoss && !this.isMiniBoss) {
+      const pred = this._steerPredict(player, dist);
+      targetX = pred.x;
+      targetY = pred.y;
+    }
+
+    const tdx = targetX - this.x;
+    const tdy = targetY - this.y;
+    const tDist = Math.sqrt(tdx * tdx + tdy * tdy);
+    const baseDirX = tDist > 1 ? tdx / tDist : dx / dist;
+    const baseDirY = tDist > 1 ? tdy / tDist : dy / dist;
 
     let moveX = baseDirX;
     let moveY = baseDirY;
@@ -251,6 +349,28 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
           speed = 0;
         }
         break;
+    }
+
+    // ── Apply steering behaviors ──
+
+    // Separation (all non-boss enemies)
+    if (!this.isBoss) {
+      moveX += this._steerSepX;
+      moveY += this._steerSepY;
+    }
+
+    // Wander for zombies and skeletons (slight drift)
+    if (this.enemyTypeKey === 'zombie' || this.enemyTypeKey === 'skeleton') {
+      const w = this._steerWander(delta);
+      moveX += w.x;
+      moveY += w.y;
+    }
+
+    // Flanking for spider and demon (approach from side)
+    if (this.enemyTypeKey === 'spider' || this.enemyTypeKey === 'demon') {
+      const f = this._steerFlank(player);
+      moveX += f.x;
+      moveY += f.y;
     }
 
     // Normalize and apply
