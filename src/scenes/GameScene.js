@@ -79,13 +79,36 @@ class GameScene extends Phaser.Scene {
     // Minimap
     this.minimap = new Minimap(this);
 
-    // FPS debug counter (top-left)
-    this._fpsText = this.add.text(8, 8, '', { fontSize: '12px', fill: '#ffff00', fontFamily: 'monospace' });
+    // Stress test mode
+    this._stressTest = this.scene.settings?.data?.stressTest || false;
+
+    // FPS counter — prominent when stress test
+    const fpsFontSize = this._stressTest ? '20px' : '12px';
+    const fpsColor = this._stressTest ? '#00ff00' : '#ffff00';
+    this._fpsText = this.add.text(8, 8, '', {
+      fontSize: fpsFontSize,
+      fill: fpsColor,
+      fontFamily: 'monospace',
+      backgroundColor: '#000000',
+      padding: { x: 6, y: 3 }
+    });
     this._fpsText.setScrollFactor(0);
     this._fpsText.setDepth(1001);
     this._fpsFrames = 0;
     this._fpsLast = 0;
     this._fpsValue = 0;
+
+    // FPS bar background (stress test mode)
+    if (this._stressTest) {
+      this._fpsBarBg = this.add.rectangle(this.scale.width / 2, 16, 200, 24, 0x333333, 0.8)
+        .setScrollFactor(0).setDepth(1002);
+      this._fpsBarFill = this.add.rectangle(
+        this.scale.width / 2 - 100 + 2, 16, 196, 20, 0x00ff00, 0.9
+      ).setScrollFactor(0).setDepth(1003).setOrigin(0, 0.5);
+      this._fpsBarText = this.add.text(this.scale.width / 2, 16, '', {
+        fontSize: '16px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(1004);
+    }
 
     // Weapon system — tracks weapons and auto-attack timers
     this._weapons = [];
@@ -229,18 +252,93 @@ class GameScene extends Phaser.Scene {
 
     // ── Pause System ──
     this.isPaused = false;
-    this._pauseOverlay = this.add.rectangle(
-      this.scale.width / 2, this.scale.height / 2,
-      this.scale.width, this.scale.height, 0x000000, 0.5
-    ).setScrollFactor(0).setDepth(200).setVisible(false);
-    this._pauseText = this.add.text(this.scale.width / 2, this.scale.height / 2, '⏸ PAUSED', {
-      fontSize: '48px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
-      fontStyle: 'bold', stroke: '#000000', strokeThickness: 6
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(201).setVisible(false);
-    this._pauseHint = this.add.text(this.scale.width / 2, this.scale.height / 2 + 50, 'Press P or ESC to resume', {
-      fontSize: '16px', fontFamily: 'Arial, sans-serif', color: '#aaaaaa',
+    this._pauseContainer = this.add.container(this.scale.width / 2, this.scale.height / 2)
+      .setScrollFactor(0).setDepth(200).setVisible(false);
+
+    // Dim overlay
+    this._pauseOverlay = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.6).setOrigin(0.5);
+
+    // Panel background
+    this._pausePanel = this.add.graphics();
+    this._pausePanel.fillStyle(0x1a1a2e, 0.95);
+    this._pausePanel.fillRoundedRect(-160, -140, 320, 310, 12);
+    this._pausePanel.lineStyle(2, 0x4ecdc4, 0.6);
+    this._pausePanel.strokeRoundedRect(-160, -140, 320, 310, 12);
+
+    this._pauseText = this.add.text(0, -110, '⏸ PAUSED', {
+      fontSize: '36px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 4
+    }).setOrigin(0.5);
+
+    // Resume button
+    this._pauseResumeBtn = this.add.text(0, -50, '▶  Resume', {
+      fontSize: '20px', fontFamily: 'Arial, sans-serif', color: '#4ecdc4',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 3,
+      backgroundColor: '#1a3a3a', padding: { x: 24, y: 8 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    // Restart button
+    this._pauseRestartBtn = this.add.text(0, 0, '↻  Restart', {
+      fontSize: '20px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 3,
+      backgroundColor: '#3a3a1a', padding: { x: 24, y: 8 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    // Quit button
+    this._pauseQuitBtn = this.add.text(0, 50, '✕  Quit', {
+      fontSize: '20px', fontFamily: 'Arial, sans-serif', color: '#e94560',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 3,
+      backgroundColor: '#3a1a1a', padding: { x: 24, y: 8 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    // Volume controls
+    this._volumeLabel = this.add.text(-120, 105, 'Master:', {
+      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#ccc',
       stroke: '#000000', strokeThickness: 2
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(201).setVisible(false);
+    }).setOrigin(0, 0.5);
+    this._volumeValue = this.add.text(60, 105, '50%', {
+      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#4ecdc4',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 2
+    }).setOrigin(0, 0.5);
+    this._volumeDownBtn = this.add.text(-40, 105, ' ◀ ', {
+      fontSize: '18px', fontFamily: 'Arial, sans-serif', color: '#fff',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 2
+    }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+    this._volumeUpBtn = this.add.text(30, 105, ' ▶ ', {
+      fontSize: '18px', fontFamily: 'Arial, sans-serif', color: '#fff',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 2
+    }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+
+    // Volume bar
+    this._volumeBarBg = this.add.rectangle(0, 130, 200, 8, 0x333333).setOrigin(0.5);
+    this._volumeBarFill = this.add.rectangle(-100, 130, 100, 8, 0x4ecdc4).setOrigin(0, 0.5);
+
+    this._pauseContainer.add([
+      this._pauseOverlay, this._pausePanel, this._pauseText,
+      this._pauseResumeBtn, this._pauseRestartBtn, this._pauseQuitBtn,
+      this._volumeLabel, this._volumeValue,
+      this._volumeDownBtn, this._volumeUpBtn,
+      this._volumeBarBg, this._volumeBarFill
+    ]);
+
+    // Button hover effects
+    const _addPauseHover = (btn, baseColor) => {
+      btn.on('pointerover', () => btn.setStyle({ color: '#ffffff' }));
+      btn.on('pointerout', () => btn.setStyle({ color: baseColor }));
+    };
+    _addPauseHover(this._pauseResumeBtn, '#4ecdc4');
+    _addPauseHover(this._pauseRestartBtn, '#ffd700');
+    _addPauseHover(this._pauseQuitBtn, '#e94560');
+
+    // Button click handlers
+    this._pauseResumeBtn.on('pointerdown', () => this._togglePause());
+    this._pauseRestartBtn.on('pointerdown', () => this._restartGame());
+    this._pauseQuitBtn.on('pointerdown', () => this._quitToMenu());
+
+    // Volume controls
+    this._pauseMasterVolume = 0.5;
+    this._volumeDownBtn.on('pointerdown', () => this._adjustVolume(-0.1));
+    this._volumeUpBtn.on('pointerdown', () => this._adjustVolume(0.1));
 
     // Pause key binding
     if (this.input.keyboard) {
@@ -936,14 +1034,64 @@ class GameScene extends Phaser.Scene {
     });
   }
 
+  // ── Stress Test Mode ──
+
+  _doStressTestBurst() {
+    // Override maxEnemies temporarily
+    const savedMax = GAME_CONFIG.maxEnemies;
+    GAME_CONFIG.maxEnemies = 300;
+
+    // Spawn 160 enemies in a ring around the player
+    const count = 160;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const dist = 200 + Math.random() * 400;
+
+      const x = this.player.x + Math.cos(angle) * dist;
+      const y = this.player.y + Math.sin(angle) * dist;
+
+      // Pick random enemy type
+      const typeKeys = Object.keys(ENEMY_TYPES);
+      const typeKey = typeKeys[Math.floor(Math.random() * typeKeys.length)];
+
+      const enemy = new Enemy(this, x, y, typeKey);
+      // Scale HP slightly so they don't die too fast
+      enemy.hp = Math.max(enemy.hp, 50);
+      enemy.maxHp = enemy.hp;
+      this.enemyGroup.add(enemy);
+      this.enemies.push(enemy);
+    }
+
+    // Restore maxEnemies (let normal spawning continue)
+    GAME_CONFIG.maxEnemies = savedMax;
+
+    // Give player extra HP so they don't die instantly
+    this.player.hp = 999;
+    this.player.maxHp = 999;
+    if (this.hud) this.hud.updateHP(this.player.hp, this.player.maxHp);
+
+    // Give all weapons max level for more visual load
+    for (const w of this._weapons) {
+      w.level = 5;
+      w.type = { ...WEAPON_TYPES[w.key] };
+      w.type.damage = Math.floor(w.type.damage * 2.5);
+      w.type.cooldown = 200; // fast fire
+    }
+
+    // Show stress test banner
+    const banner = this.add.text(this.scale.width / 2, this.scale.height - 40, '🔥 STRESS TEST MODE — 160 Enemies', {
+      fontSize: '20px', fontFamily: 'Arial, sans-serif', color: '#ff8800',
+      fontStyle: 'bold', stroke: '#000', strokeThickness: 4
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
+    this.time.delayedCall(5000, () => banner.destroy());
+  }
+
   // ── QoL: Pause System ──
 
   _togglePause() {
     if (this.gameOverTriggered) return;
     this.isPaused = !this.isPaused;
-    this._pauseOverlay.setVisible(this.isPaused);
-    this._pauseText.setVisible(this.isPaused);
-    this._pauseHint.setVisible(this.isPaused);
+    this._pauseContainer.setVisible(this.isPaused);
 
     if (this.isPaused) {
       this.physics.world.pause();
@@ -952,6 +1100,30 @@ class GameScene extends Phaser.Scene {
       this.physics.world.resume();
       this.time.resume();
     }
+  }
+
+  _adjustVolume(delta) {
+    this._pauseMasterVolume = Math.max(0, Math.min(1, this._pauseMasterVolume + delta));
+    if (this.audioManager) this.audioManager.setVolume(this._pauseMasterVolume);
+    this._volumeValue.setText(`${Math.round(this._pauseMasterVolume * 100)}%`);
+    this._volumeBarFill.width = 200 * this._pauseMasterVolume;
+  }
+
+  _restartGame() {
+    this.isPaused = false;
+    this.physics.world.resume();
+    this.time.resume();
+    this.scene.stop('GameScene');
+    this.scene.start('GameScene');
+  }
+
+  _quitToMenu() {
+    this.isPaused = false;
+    this.physics.world.resume();
+    this.time.resume();
+    if (this.audioManager) this.audioManager.destroy();
+    this.scene.stop('GameScene');
+    this.scene.start('MenuScene');
   }
 
   // ── QoL: Start Countdown (3-2-1-GO) ──
@@ -972,6 +1144,11 @@ class GameScene extends Phaser.Scene {
         countText.destroy();
         this._startCountdownActive = false;
         this.spawnTimer = this.time.now;
+
+        // ── Stress Test: spawn 150+ enemies immediately ──
+        if (this._stressTest) {
+          this._doStressTestBurst();
+        }
         return;
       }
       const step = steps[idx];

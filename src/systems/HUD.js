@@ -1,5 +1,6 @@
-// HUD.js — Timer, Score, Level + XP bar, HP bar, top-left
+// HUD.js — Timer, Score, Level + XP bar, HP bar, Weapon Levels, top-left
 // Fixed to screen (scrollFactor 0) for camera-following world
+// QoL: Rounded corners on all HUD boxes, weapon level display
 
 class HUD {
   constructor(scene) {
@@ -7,42 +8,103 @@ class HUD {
     this.elapsedSeconds = 0;
 
     const sw = scene.scale.width;
+    const pad = 12;
+    const boxW = 210;
+    const boxH = 72;
+
+    // ── Background panel (rounded) ──
+    this._panel = scene.add.graphics();
+    this._panel.fillStyle(0x000000, 0.5);
+    this._panel.fillRoundedRect(pad - 4, pad - 4, boxW, boxH, 8);
+    this._panel.setScrollFactor(0).setDepth(49);
 
     // HP Bar
-    this.hpBg = scene.add.rectangle(16, 16, 200, 16, 0x333333).setScrollFactor(0).setDepth(50);
-    this.hpFill = scene.add.rectangle(16, 16, 200, 16, 0xe94560).setScrollFactor(0).setDepth(50).setOrigin(0, 0);
-    this.hpText = scene.add.text(16, 18, '100 / 100', {
+    this.hpBg = scene.add.rectangle(pad + 4, pad + 8, 196, 14, 0x333333)
+      .setScrollFactor(0).setDepth(50);
+    this.hpFill = scene.add.rectangle(pad + 4, pad + 8, 196, 14, 0xe94560)
+      .setScrollFactor(0).setDepth(50).setOrigin(0, 0);
+    this.hpText = scene.add.text(pad + 8, pad + 9, '100 / 100', {
       fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#fff'
     }).setScrollFactor(0).setDepth(51);
 
     // XP Bar
-    this.xpBg = scene.add.rectangle(16, 36, 200, 10, 0x333333).setScrollFactor(0).setDepth(50);
-    this.xpFill = scene.add.rectangle(16, 36, 200, 10, 0x4ecdc4).setScrollFactor(0).setDepth(50).setOrigin(0, 0);
-    this.levelText = scene.add.text(16, 50, 'Lv. 1', {
+    this.xpBg = scene.add.rectangle(pad + 4, pad + 26, 196, 8, 0x333333)
+      .setScrollFactor(0).setDepth(50);
+    this.xpFill = scene.add.rectangle(pad + 4, pad + 26, 196, 8, 0x4ecdc4)
+      .setScrollFactor(0).setDepth(50).setOrigin(0, 0);
+    this.levelText = scene.add.text(pad + 8, pad + 36, 'Lv. 1', {
       fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#ffd700', fontStyle: 'bold'
     }).setScrollFactor(0).setDepth(51);
 
     // Kill counter
-    this.killText = scene.add.text(16, 68, 'Kills: 0', {
+    this.killText = scene.add.text(pad + 8, pad + 52, 'Kills: 0', {
       fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#aaa'
     }).setScrollFactor(0).setDepth(51);
 
-    // Timer (top-right)
-    this.timerText = scene.add.text(sw - 16, 16, '00:00', {
+    // ── Weapon Level Display (right side panel) ──
+    this._weaponPanel = scene.add.graphics();
+    this._weaponPanel.setScrollFactor(0).setDepth(49);
+    this._weaponTexts = [];
+    this._weaponPanelWidth = 140;
+    this._weaponPanelX = sw - pad - this._weaponPanelWidth;
+
+    // Timer (top-right, above weapon panel)
+    this.timerText = scene.add.text(sw - pad, pad, '00:00', {
       fontSize: '14px', fontFamily: 'monospace', color: '#fff', fontStyle: 'bold'
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(50);
 
     // Score (top-right)
-    this.scoreText = scene.add.text(sw - 16, 36, 'Score: 0', {
+    this.scoreText = scene.add.text(sw - pad, pad + 18, 'Score: 0', {
       fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#ccc'
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(50);
 
     // Enemy count
-    this.enemyText = scene.add.text(sw - 16, 54, 'Enemies: 0', {
+    this.enemyText = scene.add.text(sw - pad, pad + 34, 'Enemies: 0', {
       fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#888'
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(50);
 
     this._timerEvent = null;
+  }
+
+  updateWeapons(weapons) {
+    if (!weapons || !weapons.length) return;
+
+    const px = this._weaponPanelX;
+    const py = 56;
+    const lineH = 16;
+
+    // Clear old
+    for (const t of this._weaponTexts) {
+      if (t && t.active) t.destroy();
+    }
+    this._weaponTexts = [];
+    this._weaponPanel.clear();
+
+    // Draw panel background
+    const panelH = weapons.length * lineH + 8;
+    this._weaponPanel.fillStyle(0x000000, 0.4);
+    this._weaponPanel.fillRoundedRect(px - 4, py - 4, this._weaponPanelWidth, panelH, 6);
+
+    // Draw weapon entries
+    for (let i = 0; i < weapons.length; i++) {
+      const w = weapons[i];
+      const name = w.key ? w.key.charAt(0).toUpperCase() + w.key.slice(1) : '?';
+      const lvl = w.level || 1;
+
+      // Level pips (visual)
+      let pips = '';
+      const maxPips = 5;
+      const filled = Math.min(lvl, maxPips);
+      for (let p = 0; p < maxPips; p++) {
+        pips += p < filled ? '◆' : '◇';
+      }
+
+      const txt = this.scene.add.text(px + 4, py + i * lineH, `${name} Lv.${lvl} ${pips}`, {
+        fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#ccc'
+      }).setScrollFactor(0).setDepth(51);
+
+      this._weaponTexts.push(txt);
+    }
   }
 
   startTimer() {
@@ -60,7 +122,7 @@ class HUD {
 
   updateHP(current, max) {
     const ratio = Math.max(0, current / max);
-    this.hpFill.width = Math.max(0, 200 * ratio);
+    this.hpFill.width = Math.max(0, 196 * ratio);
     // Color changes: green > yellow > red
     if (ratio > 0.5) this.hpFill.setFillStyle(0x4ecdc4);
     else if (ratio > 0.25) this.hpFill.setFillStyle(0xf39c12);
@@ -70,7 +132,7 @@ class HUD {
 
   updateXP(current, needed, level) {
     const ratio = Math.max(0, current / needed);
-    this.xpFill.width = Math.max(0, 200 * ratio);
+    this.xpFill.width = Math.max(0, 196 * ratio);
     this.levelText.setText(`Lv. ${level}`);
   }
 
@@ -92,5 +154,9 @@ class HUD {
 
   destroy() {
     if (this._timerEvent) this._timerEvent.destroy();
+    for (const t of this._weaponTexts) {
+      if (t && t.active) t.destroy();
+    }
+    this._weaponTexts = [];
   }
 }

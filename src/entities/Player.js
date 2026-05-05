@@ -29,7 +29,11 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       armor: 0,
       hpRegen: 0,
       xpMultiplier: 1,
-      cooldownReduction: 0
+      cooldownReduction: 0,
+      timeSlow: 0,
+      explosionOnKill: false,
+      thorns: 0,
+      lifeSteal: 0
     };
 
     // XP needed for next level
@@ -37,6 +41,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Weapons array (populated by WeaponSystem)
     this.weapons = [];
+
+    // Reference to AbilitySystem (set by GameScene)
+    this.abilitySystem = null;
 
     // Invincibility after taking damage
     this._invincible = false;
@@ -197,9 +204,18 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  /** Activate ability by slot index — called from AbilitySystem or directly */
+  activateAbility(slotIdx) {
+    if (this.abilitySystem) {
+      return this.abilitySystem.activateSlot(slotIdx);
+    }
+    return false;
+  }
+
   destroy() {
     if (this._graphics) this._graphics.destroy();
     if (this._invincibleTimer) this._invincibleTimer.remove();
+    if (this.abilitySystem) this.abilitySystem.destroy();
     super.destroy();
   }
 }

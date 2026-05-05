@@ -19,17 +19,37 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
     this.melee = stats.melee || type.melee || false;
     this.cooldown = stats.cooldown || type.cooldown;
 
-    // Projectile size
-    this._projSize = type.projectileSize || 6;
+    // Boomerang flag
+    this.boomerang = stats.boomerang || type.boomerang || false;
+
+    // Boomerang state
+    this._boomerangPhase = 'out'; // 'out', 'turning', 'return'
+    this._boomerangTurnTimer = 0;
+    this._boomerangTurnDelay = this.range / this._speed * 1000 * 0.6; // Turn at 60% of range
+    this._returnSpeed = this._speed * 1.2;
+
+    // Projectile size — boosted for visibility and scales with level
+    const baseProjSize = type.projectileSize || 6;
+    this._weaponLevel = stats.level || 1;
+    this._projSize = baseProjSize + 3 + (this._weaponLevel - 1) * 1.5;
     this.body.setCircle(Math.max(2, this._projSize), 0, 0);
 
     // Movement
     this._speed = stats.speed !== undefined ? stats.speed : type.speed;
     this._direction = direction;
 
+    // Trail system
+    this._trail = [];
+    this._trailTimer = 0;
+
     // Lifetime
     this._lifetime = 0;
     this._maxLifetime = this._speed > 0 ? (this.range / this._speed) * 1000 + 200 : 99999;
+
+    // Boomerang needs longer lifetime for return trip
+    if (this.boomerang) {
+      this._maxLifetime = (this.range / this._speed) * 1000 * 2.5;
+    }
 
     // Melee lifetime: short swing
     if (this.melee) {
@@ -68,44 +88,85 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
   _drawVisual() {
     this._graphics.clear();
 
+    // Glow radius scales with weapon level
+    const glowExtra = (this._weaponLevel - 1) * 3;
+    const glowAlpha = Math.min(0.7, 0.3 + (this._weaponLevel - 1) * 0.1);
+
     if (this.aura) {
-      // Aura: pulsing ring
+      // Aura: pulsing ring with level-scaled range
       this._graphics.lineStyle(2, this.color, 0.4);
       this._graphics.strokeCircle(0, 0, this.range);
       this._graphics.fillStyle(this.color, 0.1);
       this._graphics.fillCircle(0, 0, this.range);
+      // Level 3+: inner ring
+      if (this._weaponLevel >= 3) {
+        this._graphics.lineStyle(1, this.color, 0.3);
+        this._graphics.strokeCircle(0, 0, this.range * 0.5);
+      }
     } else if (this.melee) {
-      // Melee: line/arc
+      // Melee: line/arc with level-scaled width
       if (this._direction) {
         const angle = Math.atan2(this._direction.y, this._direction.x);
-        this._graphics.lineStyle(3, this.color, 0.8);
+        const arcWidth = 2 + (this._weaponLevel - 1) * 0.5;
+        this._graphics.lineStyle(arcWidth, this.color, 0.8);
         this._graphics.beginPath();
         this._graphics.arc(0, 0, this.range * 0.6, angle - 0.6, angle + 0.6);
         this._graphics.strokePath();
-        // Tip
+        // Tip with glow
         this._graphics.fillStyle(this.color, 0.6);
         this._graphics.fillCircle(
           Math.cos(angle) * this.range * 0.6,
           Math.sin(angle) * this.range * 0.6,
-          4
+          4 + (this._weaponLevel - 1)
         );
+        // Level 3+: outer glow on tip
+        if (this._weaponLevel >= 3) {
+          this._graphics.fillStyle(this.color, 0.2);
+          this._graphics.fillCircle(
+            Math.cos(angle) * this.range * 0.6,
+            Math.sin(angle) * this.range * 0.6,
+            8 + (this._weaponLevel - 1) * 2
+          );
+        }
       }
+    } else if (this.boomerang) {
+      // Boomerang: spinning orange arc
+      this._graphics.lineStyle(3, this.color, 1);
+      this._graphics.beginPath();
+      this._graphics.arc(0, 0, this._projSize, -0.8, 1.2);
+      this._graphics.strokePath();
+      this._graphics.lineStyle(2, 0xffcc00, 0.7);
+      this._graphics.beginPath();
+      this._graphics.arc(0, 0, this._projSize * 0.6, -0.5, 0.9);
+      this._graphics.strokePath();
     } else if (this.aoe) {
-      // AOE projectile: larger with glow
-      this._graphics.fillStyle(this.color, 0.9);
+      // AOE projectile: larger with bright glow, scaled by level
+      this._graphics.fillStyle(this.color, 1.0);
       this._graphics.fillCircle(0, 0, this._projSize);
-      this._graphics.fillStyle(this.color, 0.3);
-      this._graphics.fillCircle(0, 0, this._projSize + 5);
+      this._graphics.fillStyle(this.color, glowAlpha);
+      this._graphics.fillCircle(0, 0, this._projSize + 8 + glowExtra);
       // Inner bright core
-      this._graphics.fillStyle(0xffffff, 0.6);
-      this._graphics.fillCircle(0, 0, this._projSize * 0.4);
+      this._graphics.fillStyle(0xffffff, 0.9);
+      this._graphics.fillCircle(0, 0, this._projSize * 0.5);
+      // Level 3+: outer ring
+      if (this._weaponLevel >= 3) {
+        this._graphics.lineStyle(1, 0xffffff, 0.3);
+        this._graphics.strokeCircle(0, 0, this._projSize + 4 + glowExtra);
+      }
     } else {
-      // Normal projectile
-      this._graphics.fillStyle(this.color, 0.9);
+      // Normal projectile — bright core + outer glow (level-scaled)
+      this._graphics.fillStyle(this.color, glowAlpha);
+      this._graphics.fillCircle(0, 0, this._projSize + 5 + glowExtra);
+      this._graphics.fillStyle(this.color, 1.0);
       this._graphics.fillCircle(0, 0, this._projSize);
-      // Glow
-      this._graphics.fillStyle(this.color, 0.3);
-      this._graphics.fillCircle(0, 0, this._projSize + 3);
+      // Bright core
+      this._graphics.fillStyle(0xffffff, 0.8);
+      this._graphics.fillCircle(0, 0, this._projSize * 0.4);
+      // Level 3+: second orbit ring
+      if (this._weaponLevel >= 3) {
+        this._graphics.lineStyle(1, 0xffffff, 0.25);
+        this._graphics.strokeCircle(0, 0, this._projSize + 2 + glowExtra * 0.5);
+      }
     }
 
     this._graphics.setPosition(this.x, this.y);
@@ -121,6 +182,12 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
     // Apply damage
     const finalDamage = this.damage * (this.scene.player ? this.scene.player.stats.damageMultiplier : 1);
     enemy.takeDamage(finalDamage);
+
+    // Life steal: heal player for % of damage dealt
+    if (this.scene.player && this.scene.player.stats.lifeSteal > 0) {
+      const healAmount = finalDamage * this.scene.player.stats.lifeSteal;
+      this.scene.player.heal(healAmount);
+    }
 
     // AOE: damage nearby enemies
     if (this.aoe) {
@@ -161,19 +228,49 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
+    // Boomerang behavior
+    if (this.boomerang) {
+      this._boomerangTurnTimer += delta;
+
+      if (this._boomerangPhase === 'out' && this._boomerangTurnTimer >= this._boomerangTurnDelay) {
+        this._boomerangPhase = 'return';
+      }
+
+      if (this._boomerangPhase === 'return') {
+        // Fly back to player
+        const player = this.scene.player;
+        if (player && player.active) {
+          const dx = player.x - this.x;
+          const dy = player.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < 30) {
+            // Reached player — destroy
+            this.destroy();
+            return;
+          }
+
+          const returnSpeed = this._returnSpeed;
+          this.body.setVelocity(dx / dist * returnSpeed, dy / dist * returnSpeed);
+        }
+      }
+    }
+
     // Despawn conditions
     if (this._lifetime > this._maxLifetime) {
       this.destroy();
       return;
     }
 
-    // Range check
-    const dx = this.x - this._originX;
-    const dy = this.y - this._originY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > this.range + 50) {
-      this.destroy();
-      return;
+    // Range check (skip for boomerangs in return phase)
+    if (!this.boomerang || this._boomerangPhase === 'out') {
+      const dx = this.x - this._originX;
+      const dy = this.y - this._originY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > this.range + 50) {
+        this.destroy();
+        return;
+      }
     }
 
     // Off screen despawn

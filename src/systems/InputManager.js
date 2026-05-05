@@ -51,9 +51,9 @@ class InputManager {
       zone: this.scene.game.canvas,
       mode: 'static',
       position: { left: '25%', bottom: '25%' },
-      color: 'rgba(255,255,255,0.25)',
-      size: 120,
-      restOpacity: 0.5
+      color: 'rgba(255,255,255,0.15)',
+      size: 150,
+      restOpacity: 0.4
     });
 
     this.joystickZone.on('move', (evt, data) => {

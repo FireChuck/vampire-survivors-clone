@@ -9,7 +9,7 @@ const WEAPON_TYPES = {
     cooldown: 800,
     speed: 300,
     piercing: 1,
-    range: 200,
+    range: 600,
     projectileSize: 6
   },
   knife: {
@@ -19,7 +19,7 @@ const WEAPON_TYPES = {
     cooldown: 400,
     speed: 400,
     piercing: 1,
-    range: 150,
+    range: 600,
     projectileSize: 4
   },
   axe: {
@@ -29,7 +29,7 @@ const WEAPON_TYPES = {
     cooldown: 1500,
     speed: 200,
     piercing: 2,
-    range: 120,
+    range: 600,
     projectileSize: 10
   },
   holyWater: {
@@ -39,7 +39,7 @@ const WEAPON_TYPES = {
     cooldown: 2000,
     speed: 150,
     piercing: 0,
-    range: 100,
+    range: 600,
     projectileSize: 8,
     aoe: true
   },
@@ -50,7 +50,7 @@ const WEAPON_TYPES = {
     cooldown: 1200,
     speed: 250,
     piercing: 3,
-    range: 250,
+    range: 600,
     projectileSize: 8
   },
   lightning: {
@@ -60,7 +60,7 @@ const WEAPON_TYPES = {
     cooldown: 600,
     speed: 500,
     piercing: 1,
-    range: 300,
+    range: 600,
     projectileSize: 3
   },
   garlic: {
@@ -70,7 +70,7 @@ const WEAPON_TYPES = {
     cooldown: 0,
     speed: 0,
     piercing: 999,
-    range: 60,
+    range: 120,
     projectileSize: 0,
     aura: true
   },
@@ -81,8 +81,19 @@ const WEAPON_TYPES = {
     cooldown: 1000,
     speed: 0,
     piercing: 3,
-    range: 80,
+    range: 150,
     projectileSize: 0,
     melee: true
+  },
+  boomerang: {
+    name: 'Boomerang',
+    color: 0xff8800,
+    damage: 20,
+    cooldown: 1800,
+    speed: 250,
+    piercing: 5,
+    range: 400,
+    projectileSize: 8,
+    boomerang: true
   }
 };

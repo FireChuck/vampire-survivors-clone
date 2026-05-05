@@ -50,6 +50,11 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     const hw = this.size[0] / 2;
     const hh = this.size[1] / 2;
 
+    // HP Bar — only show when damaged
+    if (this.hp < this.maxHp) {
+      this._drawHPBar();
+    }
+
     switch (this.enemyTypeKey) {
       case 'bat':
         this._graphics.fillStyle(this.color, 1);
@@ -146,8 +151,11 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this._graphics.setDepth(5);
   }
 
-  update(time, delta, player) {
+  update(time, delta, player, speedMultiplier) {
     if (!player || !player.active) return;
+
+    // Speed multiplier from Time Warp passive (default 1)
+    const spdMult = speedMultiplier || 1;
 
     this._aiTimer += delta;
     const dx = player.x - this.x;
@@ -242,7 +250,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Normalize and apply
     const moveLen = Math.sqrt(moveX * moveX + moveY * moveY);
     if (moveLen > 0) {
-      this.setVelocity(moveX / moveLen * speed, moveY / moveLen * speed);
+      this.setVelocity(moveX / moveLen * speed * spdMult, moveY / moveLen * speed * spdMult);
     }
 
     // Update graphics
@@ -252,12 +260,10 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   takeDamage(amount) {
     this.hp -= amount;
 
-    // Flash white on hit
+    // Flash white on hit (preserves HP bar area)
     this._graphics.clear();
-    const hw = this.size[0] / 2;
-    const hh = this.size[1] / 2;
     this._graphics.fillStyle(0xffffff, 0.9);
-    this._graphics.fillRect(-hw, -hh, this.size[0], this.size[1]);
+    this._graphics.fillRect(-this.size[0] / 2, -this.size[1] / 2, this.size[0], this.size[1]);
 
     // Spawn damage number
     this._spawnDamageNumber(amount);
@@ -299,8 +305,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   onDeath() {
-    // Spawn death particles
-    this._spawnDeathParticles();
+    // Particle + audio handled by GameScene via events
 
     // Emit event
     this.scene.events.emit('enemyKilled', {
@@ -317,34 +322,36 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.destroy();
   }
 
-  _spawnDeathParticles() {
-    const count = this.enemyTypeKey === 'golem' ? 12 : this.enemyTypeKey === 'demon' ? 10 : 6;
-    for (let i = 0; i < count; i++) {
-      const p = this.scene.add.rectangle(
-        this.x + (Math.random() - 0.5) * this.size[0],
-        this.y + (Math.random() - 0.5) * this.size[1],
-        3 + Math.random() * 3, 3 + Math.random() * 3,
-        this.color
-      ).setDepth(20);
+  // Death particles now handled by ParticleSystem via enemyKilled event
 
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 50 + Math.random() * 100;
+  _drawHPBar() {
+    const barWidth = this.size[0] + 4;
+    const barHeight = 3;
+    const y = -this.size[1] / 2 - 8;
+    const ratio = Math.max(0, this.hp / this.maxHp);
 
-      this.scene.tweens.add({
-        targets: p,
-        x: p.x + Math.cos(angle) * (20 + Math.random() * 30),
-        y: p.y + Math.sin(angle) * (20 + Math.random() * 30),
-        alpha: 0,
-        angle: Math.random() * 360,
-        duration: 400 + Math.random() * 300,
-        ease: 'Power1',
-        onComplete: () => p.destroy()
-      });
-    }
+    // Background
+    this._graphics.fillStyle(0x333333, 0.8);
+    this._graphics.fillRect(-barWidth / 2, y, barWidth, barHeight);
+
+    // HP Fill (green → yellow → red)
+    const color = ratio > 0.5 ? 0x22cc22 : ratio > 0.25 ? 0xcccc22 : 0xcc2222;
+    this._graphics.fillStyle(color, 1);
+    this._graphics.fillRect(-barWidth / 2, y, barWidth * ratio, barHeight);
   }
 
   canDamagePlayer() {
     return !this._damageCooldown;
+  }
+
+  // ── HP/DMG Scaling (called from GameScene spawn) ──
+  applyTimeScaling(gameTimeSeconds) {
+    const timeMinutes = gameTimeSeconds / 60;
+    const hpScale = 1 + (timeMinutes * 0.1); // +10% HP per minute
+    const dmgScale = 1 + (timeMinutes * 0.1); // +10% DMG per minute
+    this.hp = Math.floor(this.hp * hpScale);
+    this.maxHp = this.hp;
+    this.damage = Math.floor(this.damage * dmgScale);
   }
 
   startDamageCooldown() {

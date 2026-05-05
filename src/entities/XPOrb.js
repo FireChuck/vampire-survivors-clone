@@ -68,22 +68,11 @@ class XPOrb extends Phaser.Physics.Arcade.Sprite {
 
   collect(player) {
     player.addXp(this.value);
-    this.collectEffect();
+    // Particle effect handled by GameScene via particleSystem
     this.destroy();
   }
 
-  collectEffect() {
-    // Simple scale-up fade effect
-    if (this._graphics) {
-      this._graphics.clear();
-      this._graphics.fillStyle(0x88ff88, 0.5);
-      this._graphics.fillCircle(0, 0, this._radius + 6);
-      this._graphics.setPosition(this.x, this.y);
-      this.scene.time.delayedCall(100, () => {
-        if (this._graphics) this._graphics.destroy();
-      });
-    }
-  }
+  // Collect particles now handled by ParticleSystem via GameScene
 
   preUpdate(time, delta) {
     super.preUpdate(time, delta);

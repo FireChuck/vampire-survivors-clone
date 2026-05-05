@@ -63,7 +63,9 @@ const UPGRADE_TYPES = [
     description: 'Unlock a random weapon',
     icon: '🔫',
     apply: function(player) {
-      // Handled by GameScene — triggers weapon unlock logic
+      if (player.scene) {
+        player.scene.events.emit('upgradeNewWeapon');
+      }
     }
   },
   {
@@ -72,7 +74,54 @@ const UPGRADE_TYPES = [
     description: 'Upgrade random weapon level',
     icon: '⬆️',
     apply: function(player) {
-      // Handled by GameScene — triggers weapon upgrade logic
+      if (player.scene) {
+        player.scene.events.emit('upgradeWeaponLevel');
+      }
+    }
+  },
+  {
+    id: 'magnet2',
+    name: 'Magnet',
+    description: '+50% Pickup Range',
+    icon: '🧲',
+    apply: function(player) {
+      player.pickupRange *= 1.5;
+    }
+  },
+  {
+    id: 'timeSlow',
+    name: 'Time Warp',
+    description: 'Enemies move 10% slower',
+    icon: '⏳',
+    apply: function(player) {
+      player.stats.timeSlow += 0.1;
+    }
+  },
+  {
+    id: 'explosion',
+    name: 'Explosive Kill',
+    description: 'Enemies explode on death (AOE)',
+    icon: '💥',
+    apply: function(player) {
+      player.stats.explosionOnKill = true;
+    }
+  },
+  {
+    id: 'thorns',
+    name: 'Thorns',
+    description: 'Reflect 20% damage to attackers',
+    icon: '🦔',
+    apply: function(player) {
+      player.stats.thorns += 0.2;
+    }
+  },
+  {
+    id: 'vampirism',
+    name: 'Vampirism',
+    description: 'Heal 5% of damage dealt',
+    icon: '🧛',
+    apply: function(player) {
+      player.stats.lifeSteal += 0.05;
     }
   }
 ];
