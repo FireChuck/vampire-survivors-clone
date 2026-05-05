@@ -35,6 +35,14 @@ class GameScene extends Phaser.Scene {
     this.hud = new HUD(this);
     this.upgradeSystem = new UpgradeSystem(this, this.player, this.hud);
 
+    // ── QoL Systems ──
+    this.screenShake = new ScreenShake(this);
+    this.damageNumbers = new DamageNumbers(this);
+
+    // ── Ability System ──
+    this.abilitySystem = new AbilitySystem(this, this.player);
+    this.player.abilitySystem = this.abilitySystem;
+
     // ── Performance Systems ──
     this.spatialGrid = new SpatialGrid(128, GAME_CONFIG.worldWidth, GAME_CONFIG.worldHeight);
 
@@ -71,6 +79,14 @@ class GameScene extends Phaser.Scene {
     // Minimap
     this.minimap = new Minimap(this);
 
+    // FPS debug counter (top-left)
+    this._fpsText = this.add.text(8, 8, '', { fontSize: '12px', fill: '#ffff00', fontFamily: 'monospace' });
+    this._fpsText.setScrollFactor(0);
+    this._fpsText.setDepth(1001);
+    this._fpsFrames = 0;
+    this._fpsLast = 0;
+    this._fpsValue = 0;
+
     // Weapon system — tracks weapons and auto-attack timers
     this._weapons = [];
     this._weaponTimers = {};
@@ -89,7 +105,7 @@ class GameScene extends Phaser.Scene {
     this.gameOverTriggered = false;
     this.spawnTimer = 0;
 
-    // Spawn intervals
+    // Spawn intervals (used after countdown)
     this.spawnInterval = GAME_CONFIG.spawnIntervalStart;
     this._lastSpawnTime = 0;
 
@@ -119,9 +135,13 @@ class GameScene extends Phaser.Scene {
       this._spawnXPOrb(data.x, data.y, data.xpValue);
       this.score += data.xpValue * 10;
       this.killCount++;
+      // Kill streak
+      this._updateKillStreak();
       // Audio + particles
       if (this.audioManager) this.audioManager.playEnemyDeath();
       if (this.particleSystem) this.particleSystem.emitDeath(data.x, data.y);
+      // Damage number for XP
+      if (this.damageNumbers) this.damageNumbers.show(data.x, data.y, data.xpValue, 'xp');
       // Explosion on kill
       if (this.player.stats.explosionOnKill) {
         this._explosionOnKill(data.x, data.y);
@@ -138,9 +158,11 @@ class GameScene extends Phaser.Scene {
       this.upgradeSystem.addXP(0); // trigger XP check for display
       if (this.hud) {
         this.hud.updateHP(this.player.hp, this.player.maxHp);
+        this.hud.updateWeapons(this._weapons);
       }
       if (this.audioManager) this.audioManager.playLevelUp();
       if (this.particleSystem) this.particleSystem.emitLevelUp(this.player.x, this.player.y);
+      if (this.screenShake) this.screenShake.shake('levelUp');
     });
 
     // Listen for upgrade events from UpgradeSystem
@@ -205,8 +227,69 @@ class GameScene extends Phaser.Scene {
     // ── Particle System ──
     this.particleSystem = new ParticleSystem(this);
 
-    // Start spawning
-    this.spawnTimer = this.time.now;
+    // ── Pause System ──
+    this.isPaused = false;
+    this._pauseOverlay = this.add.rectangle(
+      this.scale.width / 2, this.scale.height / 2,
+      this.scale.width, this.scale.height, 0x000000, 0.5
+    ).setScrollFactor(0).setDepth(200).setVisible(false);
+    this._pauseText = this.add.text(this.scale.width / 2, this.scale.height / 2, '⏸ PAUSED', {
+      fontSize: '48px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 6
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(201).setVisible(false);
+    this._pauseHint = this.add.text(this.scale.width / 2, this.scale.height / 2 + 50, 'Press P or ESC to resume', {
+      fontSize: '16px', fontFamily: 'Arial, sans-serif', color: '#aaaaaa',
+      stroke: '#000000', strokeThickness: 2
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(201).setVisible(false);
+
+    // Pause key binding
+    if (this.input.keyboard) {
+      this.input.keyboard.on('keydown-P', () => this._togglePause());
+      this.input.keyboard.on('keydown-ESC', () => this._togglePause());
+    }
+
+    // ── Kill Streak System ──
+    this._killStreak = { count: 0, lastKillTime: 0, comboTimeout: 2000, scoreBonus: 0 };
+    this._streakText = this.add.text(this.scale.width / 2, this.scale.height * 0.25, '', {
+      fontSize: '36px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 4
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(55).setAlpha(0);
+
+    // ── Boss HP Bar (top of screen) ──
+    this._bossBarContainer = this.add.container(this.scale.width / 2, 50).setScrollFactor(0).setDepth(60).setVisible(false);
+    this._bossBarNameBg = this.add.rectangle(0, -18, 300, 22, 0x000000, 0.7).setOrigin(0.5);
+    this._bossBarName = this.add.text(0, -18, '', {
+      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 2
+    }).setOrigin(0.5);
+    this._bossBarBg = this.add.rectangle(0, 4, 300, 16, 0x333333, 0.9).setOrigin(0.5);
+    this._bossBarFill = this.add.rectangle(0, 4, 300, 16, 0xe94560, 1).setOrigin(0, 0.5);
+    this._bossBarFill.setPosition(-150, 4);
+    this._bossBarText = this.add.text(0, 4, '', {
+      fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#ffffff', fontStyle: 'bold'
+    }).setOrigin(0.5);
+    this._bossBarContainer.add([this._bossBarNameBg, this._bossBarName, this._bossBarBg, this._bossBarFill, this._bossBarText]);
+    this._bossBarContainer.setScale(0.8);
+    this._activeBossRef = null;
+
+    // ── Start Countdown (3-2-1-GO) ──
+    this._startCountdownActive = true;
+    this.player.setVelocity(0, 0);
+    this._doStartCountdown();
+
+    // ── DLC: Chest System ──
+    this._chests = [];
+    this._lastChestSpawnTime = 0;
+    this._chestSpawnInterval = GAME_CONFIG.chestSpawnInterval * 1000; // 60s base
+    this.chestGroup = this.physics.add.group({ runChildUpdate: false });
+
+    // Chest ↔ Player collision
+    this.physics.add.overlap(this.player, this.chestGroup, (player, chest) => {
+      if (chest.active && !chest._opened) chest.open(player);
+    });
+
+    // ── DLC: New Enemy Types (Summoner + Exploder) ──
+    this._dlcEnemySpawnTimers = { summoner: 0, exploder: 0 };
   }
 
   // ── Biome System ──
@@ -668,13 +751,10 @@ class GameScene extends Phaser.Scene {
     const x = this.player.x + Math.cos(angle) * dist;
     const y = this.player.y + Math.sin(angle) * dist;
 
-    // Scale HP with game time
-    const hpScale = 1 + this.gameTime / 60000;
     const type = ENEMY_TYPES[typeKey];
 
     const enemy = new Enemy(this, x, y, typeKey);
-    enemy.hp = Math.floor(enemy.hp * hpScale);
-    enemy.maxHp = enemy.hp;
+    enemy.applyTimeScaling(this.gameTime / 1000);
 
     this.enemyGroup.add(enemy);
     this.enemies.push(enemy);
@@ -683,6 +763,49 @@ class GameScene extends Phaser.Scene {
     if (typeKey === 'golem' || typeKey === 'demon') {
       this.screenEdgeIndicators.addIndicator(enemy, 'boss');
     }
+  }
+
+  // ── DLC: Chest Spawning ──
+
+  _spawnChest() {
+    if (!this.player || !this.player.active) return;
+
+    // Spawn at random position far from player
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 200 + Math.random() * 300;
+    const cx = this.player.x + Math.cos(angle) * dist;
+    const cy = this.player.y + Math.sin(angle) * dist;
+
+    const chest = new Chest(this, cx, cy);
+    this.chestGroup.add(chest);
+    this._chests.push(chest);
+  }
+
+  // ── DLC: New Enemy Spawning ──
+
+  _spawnDLCEnemy(type) {
+    if (this.enemies.length >= GAME_CONFIG.maxEnemies) return;
+
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 500 + Math.random() * 100;
+    const x = this.player.x + Math.cos(angle) * dist;
+    const y = this.player.y + Math.sin(angle) * dist;
+
+    let enemy;
+    if (type === 'summoner') {
+      enemy = new SummonerEnemy(this, x, y);
+    } else if (type === 'exploder') {
+      enemy = new ExploderEnemy(this, x, y);
+    }
+    if (!enemy) return;
+
+    // Scale HP with game time (same as regular enemies)
+    const hpScale = 1 + this.gameTime / 60000;
+    enemy.hp = Math.floor(enemy.hp * hpScale);
+    enemy.maxHp = enemy.hp;
+
+    this.enemyGroup.add(enemy);
+    this.enemies.push(enemy);
   }
 
   // ── Collision Handlers ──
@@ -705,6 +828,8 @@ class GameScene extends Phaser.Scene {
 
     if (this.audioManager) this.audioManager.playPlayerHurt();
     if (this.particleSystem) this.particleSystem.emitHit(this.player.x, this.player.y, 0xff4444);
+    if (this.screenShake) this.screenShake.shake('playerHit');
+    if (this.damageNumbers) this.damageNumbers.show(this.player.x, this.player.y - 20, actual, 'damage');
 
     if (this.hud) {
       this.hud.updateHP(this.player.hp, this.player.maxHp);
@@ -727,6 +852,12 @@ class GameScene extends Phaser.Scene {
     // Particle + audio feedback
     if (this.particleSystem) this.particleSystem.emitHit(enemy.x, enemy.y, proj.color || 0x88ccff);
     if (this.audioManager) this.audioManager.playHit();
+
+    // Damage number
+    if (this.damageNumbers) {
+      const isCrit = proj.damage && proj.damage >= (enemy.maxHp * 0.25);
+      this.damageNumbers.show(enemy.x, enemy.y - 10, proj.damage || 10, isCrit ? 'crit' : 'damage');
+    }
 
     // Only Weapon class projectiles handle hits
     if (typeof proj.onHitEnemy === 'function') {
@@ -778,7 +909,9 @@ class GameScene extends Phaser.Scene {
     // Stop all systems
     this.inputManager.destroy();
     this.upgradeSystem.destroy();
+    if (this.abilitySystem) this.abilitySystem.destroy();
     this.hud.destroy();
+    if (this.damageNumbers) this.damageNumbers.destroy();
 
     const stats = {
       score: this.score,
@@ -803,10 +936,220 @@ class GameScene extends Phaser.Scene {
     });
   }
 
+  // ── QoL: Pause System ──
+
+  _togglePause() {
+    if (this.gameOverTriggered) return;
+    this.isPaused = !this.isPaused;
+    this._pauseOverlay.setVisible(this.isPaused);
+    this._pauseText.setVisible(this.isPaused);
+    this._pauseHint.setVisible(this.isPaused);
+
+    if (this.isPaused) {
+      this.physics.world.pause();
+      this.time.pause();
+    } else {
+      this.physics.world.resume();
+      this.time.resume();
+    }
+  }
+
+  // ── QoL: Start Countdown (3-2-1-GO) ──
+
+  _doStartCountdown() {
+    const cx = this.scale.width / 2;
+    const cy = this.scale.height / 2;
+    const countText = this.add.text(cx, cy, '', {
+      fontSize: '72px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
+      fontStyle: 'bold', stroke: '#000000', strokeThickness: 6
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(300);
+
+    const steps = ['3', '2', '1', 'GO!'];
+    let idx = 0;
+
+    const showNext = () => {
+      if (idx >= steps.length) {
+        countText.destroy();
+        this._startCountdownActive = false;
+        this.spawnTimer = this.time.now;
+        return;
+      }
+      const step = steps[idx];
+      countText.setText(step);
+      countText.setAlpha(0);
+      countText.setScale(2);
+
+      const color = idx < 3 ? '#ffffff' : '#44ff44';
+      countText.setStyle({ color });
+
+      this.tweens.add({
+        targets: countText,
+        alpha: 1,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 300,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          this.time.delayedCall(500, showNext);
+        }
+      });
+      idx++;
+    };
+
+    showNext();
+  }
+
+  // ── QoL: Kill Streak Combo ──
+
+  _updateKillStreak() {
+    const now = this.gameTime;
+    if (now - this._killStreak.lastKillTime < this._killStreak.comboTimeout) {
+      this._killStreak.count++;
+    } else {
+      this._killStreak.count = 1;
+    }
+    this._killStreak.lastKillTime = now;
+
+    const count = this._killStreak.count;
+    if (count < 5) return; // Only show at 5+
+
+    let label = '';
+    let color = '#ffffff';
+    let bonus = 0;
+
+    if (count >= 25) {
+      label = `x${count} GODLIKE!`;
+      color = '#ff44ff';
+      bonus = 500;
+    } else if (count >= 15) {
+      label = `x${count} MASSACRE!`;
+      color = '#ff4444';
+      bonus = 200;
+    } else if (count >= 10) {
+      label = `x${count} UNSTOPPABLE!`;
+      color = '#ff8800';
+      bonus = 100;
+    } else if (count >= 5) {
+      label = `x${count} KILL!`;
+      color = '#ffd700';
+      bonus = 50;
+    }
+
+    if (bonus > 0) {
+      this.score += bonus;
+      this._killStreak.scoreBonus += bonus;
+    }
+
+    // Show streak text
+    this._streakText.setText(label);
+    this._streakText.setStyle({ color });
+    this._streakText.setAlpha(1);
+    this._streakText.setScale(1.2);
+
+    this.tweens.killTweensOf(this._streakText);
+    this.tweens.add({
+      targets: this._streakText,
+      alpha: 0,
+      scaleX: 1.5,
+      scaleY: 1.5,
+      duration: 1200,
+      delay: 200,
+      ease: 'Power2'
+    });
+  }
+
+  // ── QoL: Boss HP Bar (screen top) ──
+
+  _showBossHPBar(boss) {
+    this._activeBossRef = boss;
+    this._bossBarContainer.setVisible(true);
+    this._bossBarName.setText(`⚔ ${boss.bossName}`);
+    this._bossBarContainer.setScale(0.8);
+    this._bossBarContainer.setAlpha(0);
+
+    // Slide-in animation
+    this.tweens.add({
+      targets: this._bossBarContainer,
+      scaleX: 1,
+      scaleY: 1,
+      alpha: 1,
+      duration: 400,
+      ease: 'Back.easeOut'
+    });
+  }
+
+  _hideBossHPBar() {
+    this._activeBossRef = null;
+    this.tweens.add({
+      targets: this._bossBarContainer,
+      scaleX: 0.8,
+      scaleY: 0.8,
+      alpha: 0,
+      duration: 300,
+      ease: 'Power2',
+      onComplete: () => {
+        this._bossBarContainer.setVisible(false);
+      }
+    });
+  }
+
+  _updateBossHPBar() {
+    const boss = this._activeBossRef;
+    if (!boss || !boss.active) {
+      if (this._bossBarContainer.visible) this._hideBossHPBar();
+      return;
+    }
+    const ratio = Math.max(0, boss.hp / boss.maxHp);
+    const barWidth = 300 * ratio;
+    this._bossBarFill.width = Math.max(0, barWidth);
+    this._bossBarText.setText(`${Math.ceil(boss.hp)} / ${boss.maxHp}`);
+
+    // Color gradient
+    if (ratio > 0.5) this._bossBarFill.setFillStyle(0xe94560);
+    else if (ratio > 0.25) this._bossBarFill.setFillStyle(0xff8800);
+    else this._bossBarFill.setFillStyle(0xff2222);
+  }
+
+  // ── QoL: Auto-Pickup Radius scales with level ──
+
+  _updatePickupRadius() {
+    const bonus = Math.floor(this.player.level * 5);
+    this.player.pickupRange = 60 + bonus;
+  }
+
+  // ── QoL: Enhanced Wave Announcement ──
+
+  _showWaveAnnouncement(waveNum) {
+    const text = this._waveText;
+    const isBossWave = waveNum % 2 === 0;
+
+    if (isBossWave) {
+      text.setText(`⚔ BOSS WAVE ${waveNum} ⚔`);
+      text.setStyle({ color: '#ff4444', fontSize: '28px' });
+      if (this.screenShake) this.screenShake.shake('bossSpawn');
+    } else {
+      text.setText(`Wave ${waveNum}`);
+      text.setStyle({ color: '#ffd700', fontSize: '24px' });
+    }
+    text.setAlpha(1);
+    text.setScale(1.3);
+
+    this.tweens.killTweensOf(text);
+    this.tweens.add({
+      targets: text,
+      alpha: 0,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 2000,
+      delay: 800,
+      ease: 'Power2'
+    });
+  }
+
   // ── Main Update Loop ──
 
   update(time, delta) {
-    if (this.upgradeSystem.paused || this.gameOverTriggered) return;
+    if (this.isPaused || this._startCountdownActive || this.upgradeSystem.paused || this.gameOverTriggered) return;
 
     this.gameTime += delta;
 
@@ -816,6 +1159,11 @@ class GameScene extends Phaser.Scene {
     // Player movement
     const move = this.inputManager.getMovementVector();
     this.player.move(move.x, move.y);
+
+    // Ability keyboard input (Q/W/E)
+    if (this.abilitySystem) {
+      this.abilitySystem.handleKeyboardInput();
+    }
 
     // HP regen HUD update
     if (this.player.stats.hpRegen > 0 && this.hud) {
@@ -838,6 +1186,11 @@ class GameScene extends Phaser.Scene {
 
     // Weapons
     this._updateWeapons(time, delta);
+
+    // Ability system update
+    if (this.abilitySystem) {
+      this.abilitySystem.update(time, delta);
+    }
 
     // Update active projectiles — release dead ones to pool
     for (let i = this._activeProjectiles.length - 1; i >= 0; i--) {
@@ -881,18 +1234,61 @@ class GameScene extends Phaser.Scene {
       if (this.gameTime > 180000) this._spawnEnemy();
     }
 
+    // ── DLC: Chest Spawning ──
+    if (this.gameTime - this._lastChestSpawnTime > this._chestSpawnInterval) {
+      this._lastChestSpawnTime = this.gameTime;
+      // Random interval between 45-60s for next spawn
+      this._chestSpawnInterval = (45 + Math.random() * 15) * 1000;
+      this._spawnChest();
+    }
+
+    // ── DLC: New Enemy Spawning (Summoner + Exploder) ──
+    this._dlcEnemySpawnTimers.summoner += delta;
+    this._dlcEnemySpawnTimers.exploder += delta;
+    // Exploder: every 8s after 60s
+    if (this.gameTime > 60000 && this._dlcEnemySpawnTimers.exploder > 8000) {
+      this._dlcEnemySpawnTimers.exploder = 0;
+      if (Math.random() < 0.4) this._spawnDLCEnemy('exploder');
+    }
+    // Summoner: every 15s after 120s
+    if (this.gameTime > 120000 && this._dlcEnemySpawnTimers.summoner > 15000) {
+      this._dlcEnemySpawnTimers.summoner = 0;
+      if (Math.random() < 0.3) this._spawnDLCEnemy('summoner');
+    }
+
     // Update enemies
+    const timeFreezeActive = this.abilitySystem && this.abilitySystem.isTimeFreezeActive();
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
       if (!enemy || !enemy.active) {
         this.enemies.splice(i, 1);
       } else {
+        // Time freeze: enemies don't move
+        if (timeFreezeActive) {
+          enemy.update(time, delta, this.player, 0); // 0 speed multiplier = frozen
+          continue;
+        }
         // Apply timeSlow from player passive items
         if (this.player.stats.timeSlow > 0 && !enemy.isBoss) {
           const timeMultiplier = 1 - this.player.stats.timeSlow;
           enemy.update(time, delta, this.player, timeMultiplier);
         } else {
           enemy.update(time, delta, this.player, 1);
+        }
+      }
+    }
+
+    // Camera-culling: deactivate enemies far off-screen for perf
+    const cam = this.cameras.main;
+    const cullDist = GAME_CONFIG.enemyDespawnDistance;
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      const e = this.enemies[i];
+      if (e && e.active) {
+        const dx = e.x - this.player.x;
+        const dy = e.y - this.player.y;
+        if (dx * dx + dy * dy > cullDist * cullDist) {
+          e.destroy();
+          this.enemies.splice(i, 1);
         }
       }
     }
@@ -907,6 +1303,16 @@ class GameScene extends Phaser.Scene {
       }
     }
 
+    // Update chests
+    for (let i = this._chests.length - 1; i >= 0; i--) {
+      const chest = this._chests[i];
+      if (!chest || !chest.active) {
+        this._chests.splice(i, 1);
+      } else {
+        chest.update(time, delta);
+      }
+    }
+
     // Update screen-edge indicators
     this.screenEdgeIndicators.update();
 
@@ -918,7 +1324,22 @@ class GameScene extends Phaser.Scene {
     }
 
     // Minimap
+    // FPS counter update
+    this._fpsFrames++;
+    if (time - this._fpsLast >= 1000) {
+      this._fpsValue = this._fpsFrames;
+      this._fpsFrames = 0;
+      this._fpsLast = time;
+    }
+    if (this._fpsText && this._fpsText.active) {
+      this._fpsText.setText(`FPS: ${this._fpsValue} | Entities: ${this.enemies.length + this.xpOrbs.length + this._activeProjectiles.length}`);
+    }
+
     if (this.minimap) this.minimap.update();
+
+    // ── QoL Updates ──
+    this._updateBossHPBar();
+    this._updatePickupRadius();
 
     // ── Wave/Boss System ──
     this._updateWaveSystem(time, delta);
@@ -951,20 +1372,6 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  _showWaveAnnouncement(waveNum) {
-    const text = this._waveText;
-    text.setText(`Wave ${waveNum}`);
-    text.setAlpha(1);
-
-    this.tweens.add({
-      targets: text,
-      alpha: 0,
-      duration: 2000,
-      delay: 1000,
-      ease: 'Power2'
-    });
-  }
-
   _spawnBoss() {
     const bossTypes = ['necromancer', 'dragon', 'giant'];
     const bossType = bossTypes[Math.floor(Math.random() * bossTypes.length)];
@@ -975,15 +1382,15 @@ class GameScene extends Phaser.Scene {
     const y = this.player.y + Math.sin(angle) * dist;
 
     const boss = new Boss(this, x, y, bossType);
-
-    // Scale HP with game time
-    const hpScale = 1 + this.gameTime / 60000;
-    boss.hp = Math.floor(boss.hp * hpScale);
-    boss.maxHp = boss.hp;
+    boss.applyTimeScaling(this.gameTime / 1000);
 
     this.enemyGroup.add(boss);
     this.enemies.push(boss);
     this.waveSystem.bossActive = true;
+
+    // Show boss HP bar (top of screen)
+    this._showBossHPBar(boss);
+    if (this.screenShake) this.screenShake.shake('bossSpawn');
 
     // Show boss warning
     this._bossWarningText.setText(`⚠ BOSS: ${boss.bossName} ⚠`);
@@ -1001,6 +1408,7 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(100, () => {
       if (!bossRef || !bossRef.active) {
         this.waveSystem.bossActive = false;
+        this._hideBossHPBar();
         return;
       }
       const check = this.time.addEvent({
@@ -1009,6 +1417,8 @@ class GameScene extends Phaser.Scene {
         callback: () => {
           if (!bossRef.active) {
             this.waveSystem.bossActive = false;
+            this._hideBossHPBar();
+            if (this.screenShake) this.screenShake.shake('bossDeath');
             check.destroy();
           }
         }
