@@ -144,6 +144,11 @@ class BoomerangProjectile extends Phaser.Physics.Arcade.Sprite {
     // Life steal
     if (this.scene.player && this.scene.player.stats.lifeSteal > 0) {
       this.scene.player.heal(this.damage * this.scene.player.stats.lifeSteal);
+
+      // Vampire Touch: red particle on boomerang hit
+      if (this.scene.player.stats.vampireTouchActive && this.scene.particleSystem) {
+        this.scene.particleSystem.emitHit(enemy.x, enemy.y, 0xff2222);
+      }
     }
 
     return true; // Don't destroy — piercing

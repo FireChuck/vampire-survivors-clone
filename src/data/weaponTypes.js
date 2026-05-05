@@ -130,5 +130,17 @@ const WEAPON_TYPES = {
     piercing: 999,
     range: 300,
     projectileSize: 8
+  },
+  holyAura: {
+    name: 'Holy Aura',
+    color: 0xffd700,
+    damage: 10,
+    cooldown: 0,
+    speed: 0,
+    piercing: 999,
+    range: 100,
+    projectileSize: 0,
+    aura: true,
+    knockback: 80
   }
 };

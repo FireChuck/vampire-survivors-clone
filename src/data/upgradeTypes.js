@@ -150,5 +150,15 @@ const UPGRADE_TYPES = [
     apply: function(player) {
       player.stats.xpMultiplier = (player.stats.xpMultiplier || 1) * 1.2;
     }
+  },
+  {
+    id: 'vampireTouch',
+    name: 'Vampire Touch',
+    description: 'Heal 8% of damage dealt + red particles on hit',
+    icon: '🩸',
+    apply: function(player) {
+      player.stats.lifeSteal += 0.08;
+      player.stats.vampireTouchActive = true;
+    }
   }
 ];

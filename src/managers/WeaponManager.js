@@ -235,6 +235,24 @@ class WeaponManager {
             enemy._auraTickTime = 0;
             const dmg = aura.damage * this.player.stats.damageMultiplier;
             enemy.takeDamage(dmg);
+
+            // Knockback: push enemy away from player
+            if (aura.knockback > 0 && enemy.body) {
+              const dx = enemy.x - this.player.x;
+              const dy = enemy.y - this.player.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              const kbForce = aura.knockback * (1 + (aura._weaponLevel - 1) * 0.15);
+              enemy.body.setVelocity(
+                (dx / dist) * kbForce,
+                (dy / dist) * kbForce
+              );
+              // Reset velocity after short duration
+              scene.time.delayedCall(150, () => {
+                if (enemy.active && enemy.body) {
+                  enemy.body.setVelocity(0, 0);
+                }
+              });
+            }
           }
         }
         aura.update(time, delta);

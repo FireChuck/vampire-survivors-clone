@@ -136,6 +136,9 @@ class GameScene extends Phaser.Scene {
 
     this.biomeManager = new BiomeManager(this);
 
+    // Environmental Hazards System
+    this.hazardSystem = new HazardSystem(this);
+
     this.collisionManager = new CollisionManager(this);
     this.collisionManager.setupCollisions();
     this.collisionManager.setupEventListeners();
@@ -302,6 +305,9 @@ class GameScene extends Phaser.Scene {
 
     // Spawning
     this.spawnManager.update(time, delta);
+
+    // Environmental hazards
+    this.hazardSystem.update(time, delta);
 
     // Update enemies
     const timeFreezeActive = this.abilitySystem && this.abilitySystem.isTimeFreezeActive();

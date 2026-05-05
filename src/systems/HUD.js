@@ -1,6 +1,7 @@
 // HUD.js — Timer, Score, Level + XP bar, HP bar, Weapon Levels, top-left
 // Fixed to screen (scrollFactor 0) for camera-following world
 // QoL: Gradient HP/XP bars, rounded corners, weapon level display, save indicator
+// Polished: Compact layout, semi-transparent panels, clean typography
 
 class HUD {
   constructor(scene) {
@@ -8,74 +9,72 @@ class HUD {
     this.elapsedSeconds = 0;
 
     const sw = scene.scale.width;
-    const pad = 12;
-    const boxW = 210;
-    const boxH = 72;
+    const pad = 10;
+    const boxW = 195;
+    const boxH = 64;
 
-    // ── Background panel (rounded) ──
+    // ── Background panel (rounded, semi-transparent) ──
     this._panel = scene.add.graphics();
-    this._panel.fillStyle(0x000000, 0.5);
-    this._panel.fillRoundedRect(pad - 4, pad - 4, boxW, boxH, 8);
+    this._panel.fillStyle(0x000000, 0.45);
+    this._panel.fillRoundedRect(pad - 4, pad - 4, boxW, boxH, 6);
     this._panel.setScrollFactor(0).setDepth(49);
 
-    // HP Bar — gradient background (dark)
-    this.hpBg = scene.add.rectangle(pad + 4, pad + 8, 196, 14, 0x333333)
+    // HP Bar — slim, gradient
+    this.hpBg = scene.add.rectangle(pad + 4, pad + 6, 183, 12, 0x222222)
       .setScrollFactor(0).setDepth(50);
-    // HP Bar fill — uses graphics for gradient
     this._hpGraphics = scene.add.graphics();
     this._hpGraphics.setScrollFactor(0).setDepth(50);
-    this._hpBarWidth = 196;
+    this._hpBarWidth = 183;
     this._hpBarX = pad + 4;
-    this._hpBarY = pad + 1;
+    this._hpBarY = pad;
 
-    this.hpText = scene.add.text(pad + 8, pad + 9, '100 / 100', {
-      fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#fff'
+    this.hpText = scene.add.text(pad + 8, pad + 6, '100 / 100', {
+      fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#eee'
     }).setScrollFactor(0).setDepth(51);
 
-    // XP Bar — gradient background
-    this.xpBg = scene.add.rectangle(pad + 4, pad + 26, 196, 8, 0x333333)
+    // XP Bar — thin gradient strip
+    this.xpBg = scene.add.rectangle(pad + 4, pad + 22, 183, 6, 0x222222)
       .setScrollFactor(0).setDepth(50);
-    // XP Bar fill — uses graphics for gradient
     this._xpGraphics = scene.add.graphics();
     this._xpGraphics.setScrollFactor(0).setDepth(50);
-    this._xpBarWidth = 196;
+    this._xpBarWidth = 183;
     this._xpBarX = pad + 4;
-    this._xpBarY = pad + 22;
+    this._xpBarY = pad + 19;
 
-    this.levelText = scene.add.text(pad + 8, pad + 36, 'Lv. 1', {
-      fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#ffd700', fontStyle: 'bold'
+    this.levelText = scene.add.text(pad + 8, pad + 30, 'Lv. 1', {
+      fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#ffd700', fontStyle: 'bold'
     }).setScrollFactor(0).setDepth(51);
 
-    // Kill counter
-    this.killText = scene.add.text(pad + 8, pad + 52, 'Kills: 0', {
-      fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#aaa'
+    // Kill counter — compact
+    this.killText = scene.add.text(pad + 8, pad + 44, 'Kills: 0', {
+      fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#999'
     }).setScrollFactor(0).setDepth(51);
 
     // ── Weapon Level Display (right side panel) ──
     this._weaponPanel = scene.add.graphics();
     this._weaponPanel.setScrollFactor(0).setDepth(49);
     this._weaponTexts = [];
-    this._weaponPanelWidth = 140;
+    this._weaponPanelWidth = 130;
     this._weaponPanelX = sw - pad - this._weaponPanelWidth;
 
-    // Timer (top-right, above weapon panel)
+    // Timer (top-right, clean monospace)
     this.timerText = scene.add.text(sw - pad, pad, '00:00', {
-      fontSize: '14px', fontFamily: 'monospace', color: '#fff', fontStyle: 'bold'
+      fontSize: '13px', fontFamily: 'monospace', color: '#fff', fontStyle: 'bold'
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(50);
 
-    // Score (top-right)
-    this.scoreText = scene.add.text(sw - pad, pad + 18, 'Score: 0', {
-      fontSize: '12px', fontFamily: 'Arial, sans-serif', color: '#ccc'
+    // Score (compact, below timer)
+    this.scoreText = scene.add.text(sw - pad, pad + 17, 'Score: 0', {
+      fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#bbb'
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(50);
 
-    // Enemy count
-    this.enemyText = scene.add.text(sw - pad, pad + 34, 'Enemies: 0', {
-      fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#888'
+    // Enemy count — subtle, dimmer
+    this.enemyText = scene.add.text(sw - pad, pad + 31, 'Enemies: 0', {
+      fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#666'
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(50);
 
     // ── Save Indicator Toast ──
-    this._saveToastText = scene.add.text(sw / 2, sw > 500 ? pad + 90 : 80, '', {
-      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#44ff44',
+    this._saveToastText = scene.add.text(sw / 2, sw > 500 ? pad + 80 : 75, '', {
+      fontSize: '13px', fontFamily: 'Arial, sans-serif', color: '#44ff44',
       fontStyle: 'bold', stroke: '#000', strokeThickness: 3
     }).setOrigin(0.5).setScrollFactor(0).setDepth(2000).setAlpha(0);
 
@@ -218,18 +217,15 @@ class HUD {
 
     this._hpGraphics.clear();
     if (fillWidth > 0) {
-      this._hpGraphics.fillStyle(0x000000, 0);
-      // Draw rounded rect fill
-      this._hpGraphics.fillRoundedRect(this._hpBarX, this._hpBarY, fillWidth, 14, 3);
-      // Apply gradient over it
-      this._drawGradientBar(this._hpGraphics, this._hpBarX, this._hpBarY, fillWidth, 14, topColor, bottomColor, 3);
+      this._hpGraphics.fillRoundedRect(this._hpBarX, this._hpBarY, fillWidth, 12, 3);
+      this._drawGradientBar(this._hpGraphics, this._hpBarX, this._hpBarY, fillWidth, 12, topColor, bottomColor, 3);
     }
 
     // HP flash on low health (pulse effect)
     if (ratio <= 0.25 && ratio > 0) {
       const pulse = 0.3 + 0.3 * Math.sin(Date.now() / 200);
       this._hpGraphics.fillStyle(0xff0000, pulse);
-      this._hpGraphics.fillRoundedRect(this._hpBarX, this._hpBarY, fillWidth, 14, 3);
+      this._hpGraphics.fillRoundedRect(this._hpBarX, this._hpBarY, fillWidth, 12, 3);
     }
 
     this.hpText.setText(`${Math.ceil(current)} / ${max}`);

@@ -39,7 +39,7 @@ class CollisionManager {
       scene.killCount++;
       scene._updateKillStreak();
       if (scene.audioManager) scene.audioManager.playEnemyDeath();
-      if (scene.particleSystem) scene.particleSystem.emitDeath(data.x, data.y, data.color || 0xff4444);
+      if (scene.particleSystem) scene.particleSystem.emitDeath(data.x, data.y, data.color || 0xff4444, undefined, data.enemyType);
       if (scene.damageNumbers) scene.damageNumbers.show(data.x, data.y, data.xpValue, 'xp');
       if (scene.player.stats.explosionOnKill) {
         scene.weaponManager.explosionOnKill(data.x, data.y);
@@ -153,6 +153,7 @@ class CollisionManager {
       scene.inputManager.destroy();
       scene.upgradeSystem.destroy();
       if (scene.abilitySystem) scene.abilitySystem.destroy();
+      if (scene.hazardSystem) scene.hazardSystem.destroy();
       scene.hud.destroy();
       if (scene.damageNumbers) scene.damageNumbers.destroy();
 

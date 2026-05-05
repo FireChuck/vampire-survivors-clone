@@ -6,9 +6,12 @@ class AudioManager {
     this.scene = scene;
     this.ctx = null;
     this.masterGain = null;
+    this.musicGain = null;
     this.sfxGain = null;
     this._muted = false;
     this._volume = 0.5;
+    this._sfxVolume = 0.7;
+    this._musicVolume = 0.3;
 
     // Lazy-init on first user interaction
     this._initOnInteraction();
@@ -23,8 +26,14 @@ class AudioManager {
         this.masterGain.gain.value = this._volume;
         this.masterGain.connect(this.ctx.destination);
 
+        // Separate music bus — lower volume, won't overpower SFX
+        this.musicGain = this.ctx.createGain();
+        this.musicGain.gain.value = this._musicVolume;
+        this.musicGain.connect(this.masterGain);
+
+        // SFX bus — louder, distinct from music
         this.sfxGain = this.ctx.createGain();
-        this.sfxGain.gain.value = 0.7;
+        this.sfxGain.gain.value = this._sfxVolume;
         this.sfxGain.connect(this.masterGain);
 
         // Compressor to prevent clipping with many simultaneous sounds
@@ -138,9 +147,9 @@ class AudioManager {
 
   playXPPickup() {
     this._play((t) => {
-      // Tiny bright ping
+      // Tiny bright ping — slightly louder for clarity
       const freq = 800 + Math.random() * 400;
-      this._osc('sine', freq, t, 0.06, 0.12);
+      this._osc('sine', freq, t, 0.06, 0.18);
     });
   }
 
@@ -330,6 +339,20 @@ class AudioManager {
     this._volume = Math.max(0, Math.min(1, v));
     if (this.masterGain && !this._muted) {
       this.masterGain.gain.value = this._volume;
+    }
+  }
+
+  setSFXVolume(v) {
+    this._sfxVolume = Math.max(0, Math.min(1, v));
+    if (this.sfxGain) {
+      this.sfxGain.gain.value = this._sfxVolume;
+    }
+  }
+
+  setMusicVolume(v) {
+    this._musicVolume = Math.max(0, Math.min(1, v));
+    if (this.musicGain) {
+      this.musicGain.gain.value = this._musicVolume;
     }
   }
 

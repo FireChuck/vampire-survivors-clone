@@ -17,6 +17,7 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
     this.aoe = stats.aoe || type.aoe || false;
     this.aura = stats.aura || type.aura || false;
     this.melee = stats.melee || type.melee || false;
+    this.knockback = stats.knockback || type.knockback || 0;
     this.cooldown = stats.cooldown || type.cooldown;
 
     // Boomerang flag
@@ -94,14 +95,36 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
 
     if (this.aura) {
       // Aura: pulsing ring with level-scaled range
-      this._graphics.lineStyle(2, this.color, 0.4);
-      this._graphics.strokeCircle(0, 0, this.range);
-      this._graphics.fillStyle(this.color, 0.1);
+      this._graphics.fillStyle(this.color, glowAlpha * 0.15);
       this._graphics.fillCircle(0, 0, this.range);
-      // Level 3+: inner ring
-      if (this._weaponLevel >= 3) {
-        this._graphics.lineStyle(1, this.color, 0.3);
-        this._graphics.strokeCircle(0, 0, this.range * 0.5);
+      // Outer ring
+      this._graphics.lineStyle(2 + Math.floor(this._weaponLevel * 0.5), this.color, 0.5 + glowAlpha * 0.2);
+      this._graphics.strokeCircle(0, 0, this.range);
+      // Inner glow ring
+      this._graphics.lineStyle(1, 0xffffff, 0.2 + glowAlpha * 0.1);
+      this._graphics.strokeCircle(0, 0, this.range * 0.7);
+      // Level 2+: outer glow
+      if (this._weaponLevel >= 2) {
+        this._graphics.lineStyle(1, this.color, 0.15);
+        this._graphics.strokeCircle(0, 0, this.range * 1.15);
+      }
+      // Level 4+: second inner ring
+      if (this._weaponLevel >= 4) {
+        this._graphics.lineStyle(1, 0xffffff, 0.1);
+        this._graphics.strokeCircle(0, 0, this.range * 0.35);
+      }
+      // Holy aura: golden cross rays
+      if (this.weaponTypeKey === 'holyAura') {
+        var rayLen = this.range * 0.6;
+        var rayWidth = 2 + this._weaponLevel * 0.5;
+        this._graphics.lineStyle(rayWidth, 0xffd700, 0.3 + glowAlpha * 0.15);
+        for (var ri = 0; ri < 4; ri++) {
+          var ra = (ri / 4) * Math.PI * 2 + Math.PI / 4;
+          this._graphics.beginPath();
+          this._graphics.moveTo(Math.cos(ra) * this.range * 0.3, Math.sin(ra) * this.range * 0.3);
+          this._graphics.lineTo(Math.cos(ra) * rayLen, Math.sin(ra) * rayLen);
+          this._graphics.strokePath();
+        }
       }
     } else if (this.melee) {
       // Melee: line/arc with level-scaled width
@@ -190,6 +213,19 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
     if (this.scene.player && this.scene.player.stats.lifeSteal > 0) {
       const healAmount = finalDamage * this.scene.player.stats.lifeSteal;
       this.scene.player.heal(healAmount);
+
+      // Vampire Touch: red particle trail on damage
+      if (this.scene.player.stats.vampireTouchActive && this.scene.particleSystem) {
+        this.scene.particleSystem.emitHit(enemy.x, enemy.y, 0xff2222);
+        // Trail from enemy to player
+        if (this.scene.player.active) {
+          this.scene.particleSystem.emitDeath(
+            (enemy.x + this.scene.player.x) / 2,
+            (enemy.y + this.scene.player.y) / 2,
+            0xff0044, 2
+          );
+        }
+      }
     }
 
     // AOE: damage nearby enemies
@@ -219,13 +255,39 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
       if (this.scene.player && this.scene.player.active) {
         this.setPosition(this.scene.player.x, this.scene.player.y);
         this._graphics.setPosition(this.x, this.y);
-        // Pulse effect
-        const pulse = Math.sin(time * 0.005) * 0.15 + 0.4;
+        // Pulse effect with knockback push ring
+        var pulse = Math.sin(time * 0.005) * 0.15 + 0.4;
+        var pulseRange = this.range + Math.sin(time * 0.003) * 5;
         this._graphics.clear();
-        this._graphics.lineStyle(2, this.color, pulse);
-        this._graphics.strokeCircle(0, 0, this.range);
-        this._graphics.fillStyle(this.color, pulse * 0.2);
-        this._graphics.fillCircle(0, 0, this.range);
+        var glowAlpha = Math.min(0.7, 0.3 + (this._weaponLevel - 1) * 0.1);
+        // Fill
+        this._graphics.fillStyle(this.color, glowAlpha * 0.15);
+        this._graphics.fillCircle(0, 0, pulseRange);
+        // Outer ring
+        this._graphics.lineStyle(2 + Math.floor(this._weaponLevel * 0.5), this.color, pulse);
+        this._graphics.strokeCircle(0, 0, pulseRange);
+        // Inner glow ring
+        this._graphics.lineStyle(1, 0xffffff, pulse * 0.4);
+        this._graphics.strokeCircle(0, 0, pulseRange * 0.7);
+        // Holy aura: rotating cross rays
+        if (this.weaponTypeKey === 'holyAura') {
+          var rayLen = pulseRange * 0.6;
+          var rayWidth = 2 + this._weaponLevel * 0.5;
+          var rotAngle = time * 0.001;
+          this._graphics.lineStyle(rayWidth, 0xffd700, 0.25 + glowAlpha * 0.1);
+          for (var ri = 0; ri < 4; ri++) {
+            var ra = (ri / 4) * Math.PI * 2 + rotAngle;
+            this._graphics.beginPath();
+            this._graphics.moveTo(Math.cos(ra) * pulseRange * 0.3, Math.sin(ra) * pulseRange * 0.3);
+            this._graphics.lineTo(Math.cos(ra) * rayLen, Math.sin(ra) * rayLen);
+            this._graphics.strokePath();
+          }
+        }
+        // Level 2+: outer glow
+        if (this._weaponLevel >= 2) {
+          this._graphics.lineStyle(1, this.color, 0.12);
+          this._graphics.strokeCircle(0, 0, pulseRange * 1.15);
+        }
         this._graphics.setDepth(15);
       }
       return;

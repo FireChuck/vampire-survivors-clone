@@ -26,7 +26,7 @@ class SpawnManager {
     this._chests = [];
     this._lastChestSpawnTime = 0;
     this._chestSpawnInterval = GAME_CONFIG.chestSpawnInterval * 1000;
-    this._dlcEnemySpawnTimers = { summoner: 0, exploder: 0, tank: 0 };
+    this._dlcEnemySpawnTimers = { summoner: 0, exploder: 0, tank: 0, necromancer: 0 };
   }
 
   update(time, delta) {
@@ -140,10 +140,21 @@ class SpawnManager {
 
     var isBossWave = ws.currentWave % 5 === 0;
 
-    // Calculate spawn count: wave * 3, capped by maxEnemies
-    var targetCount = ws.currentWave * 3;
+    // Calculate spawn count: smoother curve with early-game ramp
+    var wave = ws.currentWave;
+    var targetCount;
+    if (wave <= 3) {
+      // Early waves: gentle ramp (3, 5, 8)
+      targetCount = wave * 2 + 1;
+    } else if (wave <= 10) {
+      // Mid game: steady growth (10 → 25)
+      targetCount = 7 + (wave - 3) * 3;
+    } else {
+      // Late game: slower growth, capped (28 → 45)
+      targetCount = 28 + Math.floor((wave - 10) * 1.5);
+    }
     if (isBossWave) {
-      targetCount = Math.max(2, Math.floor(targetCount * 0.4)); // fewer normals on boss wave
+      targetCount = Math.max(2, Math.floor(targetCount * 0.35)); // fewer normals on boss wave
     }
     ws.spawnQueue = Math.min(targetCount, GAME_CONFIG.maxEnemies - this.scene.enemies.length);
     ws.waveKillTarget = ws.spawnQueue + (isBossWave ? 1 : 0);
@@ -244,14 +255,23 @@ class SpawnManager {
       enemy = new TeleporterEnemy(scene, x, y);
     } else if (typeKey === 'tank') {
       enemy = new TankEnemy(scene, x, y);
+    } else if (typeKey === 'necromancer') {
+      enemy = new NecromancerEnemy(scene, x, y);
     } else {
       enemy = new Enemy(scene, x, y, typeKey);
     }
 
-    // Wave-based scaling: HP +10%/wave, Speed +5%/wave
+    // Wave-based scaling: gradual ramp with diminishing returns
+    // HP: +8%/wave for first 10, then +4%/wave after (caps ~3x at wave 25)
+    // Speed: +3%/wave for first 15, then +1%/wave after (caps ~1.7x at wave 25)
     var ws = this.waveSystem;
-    var hpMultiplier = 1 + (ws.currentWave * 0.10);
-    var speedMultiplier = 1 + (ws.currentWave * 0.05);
+    var wave = ws.currentWave;
+    var hpMultiplier = wave <= 10
+      ? 1 + wave * 0.08
+      : 1.8 + (wave - 10) * 0.04;
+    var speedMultiplier = wave <= 15
+      ? 1 + wave * 0.03
+      : 1.45 + (wave - 15) * 0.01;
 
     enemy.hp = Math.floor(enemy.hp * hpMultiplier);
     enemy.maxHp = enemy.hp;
@@ -281,8 +301,9 @@ class SpawnManager {
 
     var boss = new Boss(scene, x, y, bossType);
 
-    // Boss HP scaling: 15x * (1 + wave * 0.15)
-    var bossHpMultiplier = 15 * (1 + ws.currentWave * 0.15);
+    // Boss HP scaling: gradual ramp (was too aggressive)
+    // Wave 5: ~2.6x, Wave 10: ~3.5x, Wave 20: ~5.3x, Wave 30: ~7x
+    var bossHpMultiplier = 1 + (ws.currentWave * 0.2);
     boss.hp = Math.floor(boss.hp * (bossHpMultiplier / 10)); // Boss already has 10x in constructor
     boss.maxHp = boss.hp;
 
@@ -390,6 +411,7 @@ class SpawnManager {
     this._dlcEnemySpawnTimers.summoner += delta;
     this._dlcEnemySpawnTimers.exploder += delta;
     this._dlcEnemySpawnTimers.tank += delta;
+    this._dlcEnemySpawnTimers.necromancer += delta;
 
     if (this.gameTime > 60000 && this._dlcEnemySpawnTimers.exploder > 8000) {
       this._dlcEnemySpawnTimers.exploder = 0;
@@ -403,6 +425,11 @@ class SpawnManager {
     if (this.gameTime > 300000 && this._dlcEnemySpawnTimers.tank > 25000) {
       this._dlcEnemySpawnTimers.tank = 0;
       if (Math.random() < 0.2) this._spawnDLCEnemy('tank');
+    }
+    // Necromancer: after wave 10 (approx 5+ min)
+    if (this.waveSystem.currentWave >= 10 && this._dlcEnemySpawnTimers.necromancer > 18000) {
+      this._dlcEnemySpawnTimers.necromancer = 0;
+      if (Math.random() < 0.25) this._spawnDLCEnemy('necromancer');
     }
   }
 
@@ -422,6 +449,8 @@ class SpawnManager {
       enemy = new ExploderEnemy(scene, x, y);
     } else if (type === 'tank') {
       enemy = new TankEnemy(scene, x, y);
+    } else if (type === 'necromancer') {
+      enemy = new NecromancerEnemy(scene, x, y);
     }
     if (!enemy) return;
 

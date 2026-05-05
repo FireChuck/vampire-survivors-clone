@@ -393,8 +393,12 @@ class Boss extends Enemy {
   }
 
   onDeath() {
-    // Extra death particles for bosses
-    this._spawnBossDeathEffect();
+    // Extra death particles for bosses — use ParticleSystem
+    if (this.scene.particleSystem) {
+      this.scene.particleSystem.emitBossDeath(this.x, this.y, this.color);
+    } else {
+      this._spawnBossDeathEffect();
+    }
 
     // Drop multiple XP orbs
     const orbCount = 5 + Math.floor(Math.random() * 5);

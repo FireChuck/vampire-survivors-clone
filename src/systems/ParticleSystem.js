@@ -31,26 +31,178 @@ class ParticleSystem {
     }
   }
 
-  emitDeath(x, y, color, count) {
+  emitDeath(x, y, color, count, enemyType) {
     const n = count || 8;
     const c = color || 0xff4444;
-    for (let i = 0; i < n; i++) {
+    const type = enemyType || 'default';
+
+    // Pick a random variant for this enemy type
+    const variant = Math.floor(Math.random() * 3);
+
+    switch (variant) {
+      case 0: // Standard burst — radial scatter
+        for (let i = 0; i < n; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 40 + Math.random() * 120;
+          this._add({
+            x: x + (Math.random() - 0.5) * 8,
+            y: y + (Math.random() - 0.5) * 8,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 30,
+            life: 300 + Math.random() * 300,
+            maxLife: 600,
+            size: 2 + Math.random() * 4,
+            color: c,
+            alpha: 1,
+            shrink: true,
+            gravity: 80
+          });
+        }
+        break;
+
+      case 1: // Spiral burst — particles spiral outward
+        for (let i = 0; i < n; i++) {
+          const angle = (i / n) * Math.PI * 4 + Math.random() * 0.5;
+          const speed = 50 + Math.random() * 80 + (i / n) * 40;
+          this._add({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 250 + Math.random() * 250,
+            maxLife: 500,
+            size: 1.5 + Math.random() * 3,
+            color: c,
+            alpha: 1,
+            shrink: true,
+            gravity: 40
+          });
+        }
+        break;
+
+      case 2: // Scatter + rising wisps — fragments fall, wisps float up
+        for (let i = 0; i < Math.ceil(n * 0.6); i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 60 + Math.random() * 100;
+          this._add({
+            x: x + (Math.random() - 0.5) * 10,
+            y: y + (Math.random() - 0.5) * 10,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 20,
+            life: 200 + Math.random() * 200,
+            maxLife: 400,
+            size: 2 + Math.random() * 3.5,
+            color: c,
+            alpha: 1,
+            shrink: true,
+            gravity: 120
+          });
+        }
+        // Rising wisps (lighter, float upward)
+        for (let i = 0; i < Math.ceil(n * 0.4); i++) {
+          this._add({
+            x: x + (Math.random() - 0.5) * 14,
+            y: y,
+            vx: (Math.random() - 0.5) * 30,
+            vy: -40 - Math.random() * 50,
+            life: 400 + Math.random() * 300,
+            maxLife: 700,
+            size: 1 + Math.random() * 2,
+            color: this._lightenColor(c, 0.3),
+            alpha: 0.8,
+            shrink: true,
+            gravity: -15
+          });
+        }
+        break;
+    }
+
+    // Boss death: add a massive secondary explosion regardless of variant
+    if (type === 'boss' || type === 'necromancer' || type === 'dragon' || type === 'giant') {
+      this.emitBossDeath(x, y, c);
+    }
+  }
+
+  emitBossDeath(x, y, color) {
+    // Layer 1: Massive radial fire burst
+    const fireCount = 30;
+    for (let i = 0; i < fireCount; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 40 + Math.random() * 120;
+      const speed = 100 + Math.random() * 200;
+      const colors = [0xff4400, 0xff6600, 0xffaa00, 0xff2200, 0xffcc00, color || 0xff4444];
       this._add({
-        x: x + (Math.random() - 0.5) * 8,
-        y: y + (Math.random() - 0.5) * 8,
+        x: x + (Math.random() - 0.5) * 20,
+        y: y + (Math.random() - 0.5) * 20,
         vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 30,
-        life: 300 + Math.random() * 300,
-        maxLife: 600,
-        size: 2 + Math.random() * 4,
-        color: c,
+        vy: Math.sin(angle) * speed,
+        life: 400 + Math.random() * 400,
+        maxLife: 800,
+        size: 3 + Math.random() * 5,
+        color: colors[i % colors.length],
         alpha: 1,
         shrink: true,
-        gravity: 80
+        gravity: 60
       });
     }
+
+    // Layer 2: Debris chunks — heavy, fast, dark
+    for (let i = 0; i < 15; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 150 + Math.random() * 180;
+      this._add({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 80,
+        life: 500 + Math.random() * 300,
+        maxLife: 800,
+        size: 4 + Math.random() * 4,
+        color: 0x444444,
+        alpha: 0.9,
+        shrink: true,
+        gravity: 200
+      });
+    }
+
+    // Layer 3: Shockwave ring (expanding smoke ring)
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2;
+      this._add({
+        x: x + Math.cos(angle) * 30,
+        y: y + Math.sin(angle) * 30,
+        vx: Math.cos(angle) * 160,
+        vy: Math.sin(angle) * 160,
+        life: 300 + Math.random() * 200,
+        maxLife: 500,
+        size: 6 + Math.random() * 3,
+        color: 0x888888,
+        alpha: 0.4,
+        shrink: false,
+        grow: true,
+        gravity: 0
+      });
+    }
+
+    // Screen flash
+    if (this.scene && this.scene.cameras && this.scene.cameras.main) {
+      const sw = this.scene.scale.width;
+      const sh = this.scene.scale.height;
+      const flash = this.scene.add.rectangle(sw / 2, sh / 2, sw, sh, 0xffffff, 0)
+        .setDepth(998).setScrollFactor(0);
+      this.scene.tweens.add({
+        targets: flash,
+        alpha: 0.4,
+        duration: 80,
+        yoyo: true,
+        hold: 30,
+        onComplete: () => flash.destroy()
+      });
+    }
+  }
+
+  _lightenColor(color, amount) {
+    const r = Math.min(255, ((color >> 16) & 0xff) + Math.floor(255 * amount));
+    const g = Math.min(255, ((color >> 8) & 0xff) + Math.floor(255 * amount));
+    const b = Math.min(255, (color & 0xff) + Math.floor(255 * amount));
+    return (r << 16) | (g << 8) | b;
   }
 
   emitLevelUp(x, y) {

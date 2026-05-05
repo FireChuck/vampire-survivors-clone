@@ -101,5 +101,15 @@ const ENEMY_TYPES = {
     xpValue: 90,
     size: [38, 38],
     minTime: 300000
+  },
+  necromancer: {
+    name: 'Necromancer',
+    color: 0x7700bb,
+    hp: 100,
+    speed: 45,
+    damage: 8,
+    xpValue: 25,
+    size: [28, 28],
+    minTime: 0 // Handled by wave/DLC spawn, not minTime
   }
 };

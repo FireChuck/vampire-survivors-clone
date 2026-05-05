@@ -14,6 +14,8 @@ class ScreenEdgeIndicators {
     if (this.indicators.length >= this._maxIndicators) return;
     // Don't add duplicates
     if (this.indicators.find(ind => ind.target === target)) return;
+    // Only show for bosses and elites — filter out regular enemies
+    if (type === 'enemy' || type === 'normal') return;
     this.indicators.push({ target, type });
   }
 
@@ -119,8 +121,13 @@ class ScreenEdgeIndicators {
         const dx = t.x - this.scene.player.x;
         const dy = t.y - this.scene.player.y;
         const dist = Math.floor(Math.sqrt(dx * dx + dy * dy));
-        this._graphics.fillStyle(0xff4444, 0.8);
-        // Small distance text is expensive; use a simple dot pattern instead
+        // Pulsing alpha for boss indicators
+        const pulseAlpha = 0.6 + Math.sin(Date.now() * 0.005) * 0.3;
+        alpha = pulseAlpha;
+        // Distance text below arrow
+        this._graphics.fillStyle(0xff4444, 0.9);
+        this._graphics.setFontSize(10);
+        this._graphics.fillText(dist + 'm', clampX - 10, clampY + size + 8);
       }
     }
   }

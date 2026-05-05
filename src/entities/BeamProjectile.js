@@ -170,6 +170,11 @@ class BeamProjectile extends Phaser.Physics.Arcade.Sprite {
         // Life steal
         if (this.scene.player && this.scene.player.stats.lifeSteal > 0) {
           this.scene.player.heal(this._dpsPerTick * this.scene.player.stats.lifeSteal);
+
+          // Vampire Touch: red particle on beam tick
+          if (this.scene.player.stats.vampireTouchActive && this.scene.particleSystem) {
+            this.scene.particleSystem.emitHit(enemy.x, enemy.y, 0xff2222);
+          }
         }
 
         // Level 3: slow effect
