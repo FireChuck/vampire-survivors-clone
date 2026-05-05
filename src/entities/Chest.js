@@ -74,17 +74,23 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
 
     this._drawOpening();
 
-    // Determine drop
+    // Determine drop — balanced probabilities
     const roll = Math.random();
+    const gameTimeSec = this.scene.gameTime / 1000;
     let dropType, message;
 
-    if (roll < 0.30) {
+    // Adjust probabilities based on game time:
+    // Early game: more heals, Late game: more weapon upgrades
+    const healBoost = gameTimeSec < 120 ? 0.15 : 0; // +15% heal chance early
+    const weaponBoost = gameTimeSec > 300 ? 0.10 : 0; // +10% weapon chance late
+
+    if (roll < 0.25 + weaponBoost) {
       dropType = 'weaponUpgrade';
       message = this._handleWeaponUpgrade(player);
-    } else if (roll < 0.55) {
+    } else if (roll < 0.50 + healBoost) {
       dropType = 'heal';
       message = this._handleHeal(player);
-    } else if (roll < 0.80) {
+    } else if (roll < 0.75) {
       dropType = 'magnetPulse';
       message = this._handleMagnetPulse(player);
     } else {
@@ -135,10 +141,14 @@ class Chest extends Phaser.Physics.Arcade.Sprite {
   }
 
   _handleHeal(player) {
-    const healAmount = 20;
+    // Heal scales with max HP (20% of max, min 15)
+    const healAmount = Math.max(15, Math.floor(player.maxHp * 0.2));
     player.hp = Math.min(player.hp + healAmount, player.maxHp);
     if (this.scene.hud) {
       this.scene.hud.updateHP(player.hp, player.maxHp);
+    }
+    if (this.scene.damageNumbers) {
+      this.scene.damageNumbers.show(player.x, player.y - 20, healAmount, 'heal');
     }
     return `+${healAmount} HP!`;
   }

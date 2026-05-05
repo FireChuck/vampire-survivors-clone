@@ -107,6 +107,41 @@ class HUD {
     }
   }
 
+  // ── Weapon Cooldown Indicators ──
+  updateWeaponCooldowns(weapons) {
+    if (!weapons || !weapons.length) return;
+    if (!this._cooldownGraphics) {
+      this._cooldownGraphics = this.scene.add.graphics();
+      this._cooldownGraphics.setScrollFactor(0).setDepth(52);
+    }
+
+    const px = this._weaponPanelX;
+    const py = 56;
+    const lineH = 16;
+
+    this._cooldownGraphics.clear();
+
+    for (let i = 0; i < weapons.length; i++) {
+      const w = weapons[i];
+      const cooldown = w.type.cooldown * (1 - (this.scene.player?.stats?.cooldownReduction || 0));
+      const ratio = cooldown > 0 ? Math.min(1, w.timer / cooldown) : 1;
+
+      if (ratio < 1) {
+        // Show cooldown progress bar under weapon entry
+        const barX = px + 4;
+        const barY = py + i * lineH + 12;
+        const barW = this._weaponPanelWidth - 12;
+
+        // Background
+        this._cooldownGraphics.fillStyle(0x333333, 0.5);
+        this._cooldownGraphics.fillRect(barX, barY, barW, 2);
+        // Fill
+        this._cooldownGraphics.fillStyle(0x4ecdc4, 0.8);
+        this._cooldownGraphics.fillRect(barX, barY, barW * ratio, 2);
+      }
+    }
+  }
+
   startTimer() {
     this.elapsedSeconds = 0;
     this._timerEvent = this.scene.time.addEvent({
@@ -132,7 +167,16 @@ class HUD {
 
   updateXP(current, needed, level) {
     const ratio = Math.max(0, current / needed);
-    this.xpFill.width = Math.max(0, 196 * ratio);
+    const targetWidth = Math.max(0, 196 * ratio);
+    // Smooth fill animation
+    if (this.xpFill.width !== targetWidth) {
+      this.scene.tweens.add({
+        targets: this.xpFill,
+        width: targetWidth,
+        duration: 300,
+        ease: 'Power2'
+      });
+    }
     this.levelText.setText(`Lv. ${level}`);
   }
 
