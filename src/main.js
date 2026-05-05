@@ -22,3 +22,4 @@ const GameConfig = {
 };
 
 const game = new Phaser.Game(GameConfig);
+window.game = game; // Expose for testing/benchmarking

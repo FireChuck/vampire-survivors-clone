@@ -183,7 +183,7 @@ class WeaponManager {
     const proj = scene.projectilePool.get();
     proj.x = px;
     proj.y = py;
-    proj.body.reset(px, py);
+    if (proj.body) proj.body.reset(px, py);
     proj.weaponTypeKey = weaponKey;
     proj.color = type.color;
     proj.damage = stats.damage;
@@ -195,7 +195,7 @@ class WeaponManager {
     proj._speed = stats.speed;
     proj._direction = direction;
     proj._projSize = (WEAPON_TYPES[weaponKey].projectileSize || 6) + 3;
-    proj.body.setCircle(Math.max(2, proj._projSize), 0, 0);
+    if (proj.body) proj.body.setCircle(Math.max(2, proj._projSize), 0, 0);
     proj.setActive(true);
     proj.setVisible(true);
     proj.body.enable = true;

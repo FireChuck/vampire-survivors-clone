@@ -39,116 +39,122 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     this._bounceTimer = 0;
     this._bounceVy = 0;
 
-    // Visual: colored rectangle with type-specific details
-    this._graphics = scene.add.graphics();
-    this._drawVisual();
+    // Visual: uses shared batch graphics from scene (set via Enemy.setBatchGraphics)
+    this._graphics = null; // no individual graphics — batch rendering
+    this._flashTimer = 0;
     this.setDepth(5);
   }
 
-  _drawVisual() {
-    this._graphics.clear();
+  /** Static shared graphics — set once by GameScene */
+  static _batchGraphics = null;
+  static setBatchGraphics(gfx) { Enemy._batchGraphics = gfx; }
+  static getBatchGraphics() { return Enemy._batchGraphics; }
+
+  _drawVisual(gfx) {
+    if (!gfx) gfx = Enemy._batchGraphics;
+    if (!gfx) return;
     const hw = this.size[0] / 2;
     const hh = this.size[1] / 2;
+    const px = this.x;
+    const py = this.y;
 
     // HP Bar — only show when damaged
     if (this.hp < this.maxHp) {
-      this._drawHPBar();
+      this._drawHPBar(gfx, px, py);
     }
 
     switch (this.enemyTypeKey) {
       case 'bat':
-        this._graphics.fillStyle(this.color, 1);
-        this._graphics.fillTriangle(0, 0, -hw, -hh, -hw, hh);
-        this._graphics.fillTriangle(0, 0, hw, -hh, hw, hh);
-        this._graphics.fillCircle(0, 0, hw * 0.5);
-        this._graphics.fillStyle(0xff0000, 1);
-        this._graphics.fillCircle(-2, -2, 1.5);
-        this._graphics.fillCircle(2, -2, 1.5);
+        gfx.fillStyle(this.color, 1);
+        gfx.fillTriangle(px, py, px - hw, py - hh, px - hw, py + hh);
+        gfx.fillTriangle(px, py, px + hw, py - hh, px + hw, py + hh);
+        gfx.fillCircle(px, py, hw * 0.5);
+        gfx.fillStyle(0xff0000, 1);
+        gfx.fillCircle(px - 2, py - 2, 1.5);
+        gfx.fillCircle(px + 2, py - 2, 1.5);
         break;
 
       case 'ghost':
-        this._graphics.fillStyle(this.color, 0.6);
-        this._graphics.fillCircle(0, -hh * 0.3, hw);
-        this._graphics.fillRect(-hw, -hh * 0.3, this.size[0], hh * 1.3);
+        gfx.fillStyle(this.color, 0.6);
+        gfx.fillCircle(px, py - hh * 0.3, hw);
+        gfx.fillRect(px - hw, py - hh * 0.3, this.size[0], hh * 1.3);
         for (let i = 0; i < 3; i++) {
-          this._graphics.fillCircle(-hw + (this.size[0] / 3) * i + hw / 3, hh, hw / 3);
+          gfx.fillCircle(px - hw + (this.size[0] / 3) * i + hw / 3, py + hh, hw / 3);
         }
-        this._graphics.fillStyle(0x000000, 0.8);
-        this._graphics.fillCircle(-3, -3, 2);
-        this._graphics.fillCircle(3, -3, 2);
+        gfx.fillStyle(0x000000, 0.8);
+        gfx.fillCircle(px - 3, py - 3, 2);
+        gfx.fillCircle(px + 3, py - 3, 2);
         break;
 
       case 'slime':
-        this._graphics.fillStyle(this.color, 0.8);
-        this._graphics.fillEllipse(0, hh * 0.2, this.size[0] * 1.1, this.size[1] * 0.8);
-        this._graphics.fillStyle(0xffffff, 0.4);
-        this._graphics.fillCircle(-3, -2, 3);
+        gfx.fillStyle(this.color, 0.8);
+        gfx.fillEllipse(px, py + hh * 0.2, this.size[0] * 1.1, this.size[1] * 0.8);
+        gfx.fillStyle(0xffffff, 0.4);
+        gfx.fillCircle(px - 3, py - 2, 3);
         break;
 
       case 'demon':
-        this._graphics.fillStyle(this.color, 1);
-        this._graphics.fillRect(-hw, -hh, this.size[0], this.size[1]);
-        this._graphics.fillStyle(0x660000, 1);
-        this._graphics.fillTriangle(-hw, -hh, -hw - 4, -hh - 10, -hw + 6, -hh);
-        this._graphics.fillTriangle(hw, -hh, hw + 4, -hh - 10, hw - 6, -hh);
-        this._graphics.fillStyle(0xffff00, 1);
-        this._graphics.fillCircle(-4, -3, 2.5);
-        this._graphics.fillCircle(4, -3, 2.5);
+        gfx.fillStyle(this.color, 1);
+        gfx.fillRect(px - hw, py - hh, this.size[0], this.size[1]);
+        gfx.fillStyle(0x660000, 1);
+        gfx.fillTriangle(px - hw, py - hh, px - hw - 4, py - hh - 10, px - hw + 6, py - hh);
+        gfx.fillTriangle(px + hw, py - hh, px + hw + 4, py - hh - 10, px + hw - 6, py - hh);
+        gfx.fillStyle(0xffff00, 1);
+        gfx.fillCircle(px - 4, py - 3, 2.5);
+        gfx.fillCircle(px + 4, py - 3, 2.5);
         break;
 
       case 'spider':
-        this._graphics.fillStyle(this.color, 1);
-        this._graphics.fillCircle(0, 0, hw * 0.6);
-        this._graphics.lineStyle(1, this.color, 0.8);
+        gfx.fillStyle(this.color, 1);
+        gfx.fillCircle(px, py, hw * 0.6);
+        gfx.lineStyle(1, this.color, 0.8);
         for (let i = 0; i < 4; i++) {
           const angle = (Math.PI * 0.3) + (Math.PI * 0.4 / 3) * i;
-          this._graphics.lineBetween(
-            -Math.cos(angle) * hw * 0.5, -Math.sin(angle) * hw * 0.5,
-            -Math.cos(angle) * hw * 1.3, -Math.sin(angle) * hw * 1.3
+          gfx.lineBetween(
+            px - Math.cos(angle) * hw * 0.5, py - Math.sin(angle) * hw * 0.5,
+            px - Math.cos(angle) * hw * 1.3, py - Math.sin(angle) * hw * 1.3
           );
-          this._graphics.lineBetween(
-            Math.cos(angle) * hw * 0.5, -Math.sin(angle) * hw * 0.5,
-            Math.cos(angle) * hw * 1.3, -Math.sin(angle) * hw * 1.3
+          gfx.lineBetween(
+            px + Math.cos(angle) * hw * 0.5, py - Math.sin(angle) * hw * 0.5,
+            px + Math.cos(angle) * hw * 1.3, py - Math.sin(angle) * hw * 1.3
           );
         }
-        this._graphics.fillStyle(0xff0000, 1);
-        this._graphics.fillCircle(-2, -2, 1);
-        this._graphics.fillCircle(2, -2, 1);
+        gfx.fillStyle(0xff0000, 1);
+        gfx.fillCircle(px - 2, py - 2, 1);
+        gfx.fillCircle(px + 2, py - 2, 1);
         break;
 
       case 'golem':
-        this._graphics.fillStyle(this.color, 1);
-        this._graphics.fillRect(-hw, -hh, this.size[0], this.size[1]);
-        this._graphics.lineStyle(1, 0x554433, 0.5);
-        this._graphics.lineBetween(-hw + 4, -hh + 5, hw - 4, -hh + 8);
-        this._graphics.lineBetween(-hw + 2, 0, hw - 6, 3);
-        this._graphics.lineBetween(-hw + 5, hh - 6, hw - 3, hh - 4);
-        this._graphics.fillStyle(0xffaa00, 1);
-        this._graphics.fillCircle(-5, -4, 3);
-        this._graphics.fillCircle(5, -4, 3);
+        gfx.fillStyle(this.color, 1);
+        gfx.fillRect(px - hw, py - hh, this.size[0], this.size[1]);
+        gfx.lineStyle(1, 0x554433, 0.5);
+        gfx.lineBetween(px - hw + 4, py - hh + 5, px + hw - 4, py - hh + 8);
+        gfx.lineBetween(px - hw + 2, py, px + hw - 6, py + 3);
+        gfx.lineBetween(px - hw + 5, py + hh - 6, px + hw - 3, py + hh - 4);
+        gfx.fillStyle(0xffaa00, 1);
+        gfx.fillCircle(px - 5, py - 4, 3);
+        gfx.fillCircle(px + 5, py - 4, 3);
         break;
 
       case 'skeleton':
-        this._graphics.fillStyle(this.color, 1);
-        this._graphics.fillRect(-hw, -hh, this.size[0], this.size[1]);
-        this._graphics.fillStyle(0x000000, 0.6);
-        this._graphics.fillCircle(-3, -4, 2);
-        this._graphics.fillCircle(3, -4, 2);
-        this._graphics.fillRect(-3, 2, 6, 2);
+        gfx.fillStyle(this.color, 1);
+        gfx.fillRect(px - hw, py - hh, this.size[0], this.size[1]);
+        gfx.fillStyle(0x000000, 0.6);
+        gfx.fillCircle(px - 3, py - 4, 2);
+        gfx.fillCircle(px + 3, py - 4, 2);
+        gfx.fillRect(px - 3, py + 2, 6, 2);
         break;
 
       default: // zombie
-        this._graphics.fillStyle(this.color, 1);
-        this._graphics.fillRect(-hw, -hh, this.size[0], this.size[1]);
-        this._graphics.lineStyle(1, 0x000000, 0.5);
-        this._graphics.strokeRect(-hw, -hh, this.size[0], this.size[1]);
-        this._graphics.fillStyle(0xffff00, 0.8);
-        this._graphics.fillCircle(-3, -3, 2);
-        this._graphics.fillCircle(3, -3, 2);
+        gfx.fillStyle(this.color, 1);
+        gfx.fillRect(px - hw, py - hh, this.size[0], this.size[1]);
+        gfx.lineStyle(1, 0x000000, 0.5);
+        gfx.strokeRect(px - hw, py - hh, this.size[0], this.size[1]);
+        gfx.fillStyle(0xffff00, 0.8);
+        gfx.fillCircle(px - 3, py - 3, 2);
+        gfx.fillCircle(px + 3, py - 3, 2);
         break;
     }
-
-    this._graphics.setDepth(5);
   }
 
   update(time, delta, player, speedMultiplier) {
@@ -252,25 +258,17 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (moveLen > 0) {
       this.setVelocity(moveX / moveLen * speed * spdMult, moveY / moveLen * speed * spdMult);
     }
-
-    // Update graphics
-    this._graphics.setPosition(this.x, this.y);
+    // Note: no per-enemy graphics update — batch rendering handles this in GameScene
   }
 
   takeDamage(amount) {
     this.hp -= amount;
 
-    // Flash white on hit (preserves HP bar area)
-    this._graphics.clear();
-    this._graphics.fillStyle(0xffffff, 0.9);
-    this._graphics.fillRect(-this.size[0] / 2, -this.size[1] / 2, this.size[0], this.size[1]);
+    // Flash timer — batch renderer will check this
+    this._flashTimer = 80;
 
     // Spawn damage number
     this._spawnDamageNumber(amount);
-
-    this.scene.time.delayedCall(80, () => {
-      if (this.active) this._drawVisual();
-    });
 
     if (this.hp <= 0) {
       this.onDeath();
@@ -305,18 +303,6 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   onDeath() {
-    // Fade + scale down death animation
-    if (this._graphics && this._graphics.active) {
-      this.scene.tweens.add({
-        targets: this._graphics,
-        alpha: 0,
-        scaleX: 0.3,
-        scaleY: 0.3,
-        duration: 200,
-        ease: 'Power2'
-      });
-    }
-
     // Emit event (particles + audio handled by CollisionManager event listeners)
     this.scene.events.emit('enemyKilled', {
       x: this.x,
@@ -330,28 +316,26 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.scene.killCount++;
     }
 
-    // Destroy after fade animation completes
-    this.scene.time.delayedCall(220, () => {
-      if (this.active) this.destroy();
-    });
+    // Immediate destroy — batch renderer handles visuals
+    this.destroy();
   }
 
   // Death particles now handled by ParticleSystem via enemyKilled event
 
-  _drawHPBar() {
+  _drawHPBar(gfx, px, py) {
     const barWidth = this.size[0] + 4;
     const barHeight = 3;
-    const y = -this.size[1] / 2 - 8;
+    const y = py - this.size[1] / 2 - 8;
     const ratio = Math.max(0, this.hp / this.maxHp);
 
     // Background
-    this._graphics.fillStyle(0x333333, 0.8);
-    this._graphics.fillRect(-barWidth / 2, y, barWidth, barHeight);
+    gfx.fillStyle(0x333333, 0.8);
+    gfx.fillRect(px - barWidth / 2, y, barWidth, barHeight);
 
     // HP Fill (green → yellow → red)
     const color = ratio > 0.5 ? 0x22cc22 : ratio > 0.25 ? 0xcccc22 : 0xcc2222;
-    this._graphics.fillStyle(color, 1);
-    this._graphics.fillRect(-barWidth / 2, y, barWidth * ratio, barHeight);
+    gfx.fillStyle(color, 1);
+    gfx.fillRect(px - barWidth / 2, y, barWidth * ratio, barHeight);
   }
 
   canDamagePlayer() {
@@ -399,7 +383,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   destroy() {
-    if (this._graphics) this._graphics.destroy();
+    // No individual graphics to destroy — batch rendering
     super.destroy();
   }
 }

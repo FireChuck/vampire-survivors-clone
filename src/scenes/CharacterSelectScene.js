@@ -258,12 +258,15 @@ class CharacterSelectScene extends Phaser.Scene {
     if (!char || !char.isUnlocked) return;
 
     // Pass character data to GameScene
+    const urlParams = new URLSearchParams(window.location.search);
+    const stressTest = urlParams.has('stressTest');
     this.scene.start('GameScene', {
       characterId: char.char.id,
       characterStats: { ...char.char.stats },
       characterColor: char.char.color,
       characterHighlight: char.char.highlightColor,
-      startWeapon: char.char.startWeapon
+      startWeapon: char.char.startWeapon,
+      stressTest: stressTest
     });
   }
 }

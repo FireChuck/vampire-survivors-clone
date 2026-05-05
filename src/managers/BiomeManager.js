@@ -6,7 +6,9 @@ class BiomeManager {
     this._currentBiome = null;
     this._biomeGraphics = scene.add.graphics();
     this._biomeGraphics.setDepth(0);
-    this._decorationPool = [];
+    this._decorationGraphics = scene.add.graphics();
+    this._decorationGraphics.setDepth(1);
+    this._decorationPool = []; // lightweight data entries, not Graphics objects
     this._decorationPositionSet = new Set();
     this._lastBiome = null;
     this._biomeTransitioning = false;
@@ -439,11 +441,7 @@ class BiomeManager {
   // ── Biome Decorations ──
 
   _spawnBiomeDecorations(biome) {
-    var scene = this.scene;
-    // Destroy old decorations
-    for (var i = 0; i < this._decorationPool.length; i++) {
-      if (this._decorationPool[i] && this._decorationPool[i].active) this._decorationPool[i].destroy();
-    }
+    // Reset decorations — store lightweight data instead of Graphics objects
     this._decorationPool = [];
     this._decorationPositionSet = new Set();
     this._torchFlickerTimers = [];
@@ -451,10 +449,10 @@ class BiomeManager {
     var decorations = getDecorationsForBiome(biome.name);
     if (!decorations.length) return;
 
+    var scene = this.scene;
     var chunkSize = 800;
     var cx = scene.player.x;
     var cy = scene.player.y;
-    var margin = 100;
 
     for (var d = 0; d < decorations.length; d++) {
       var decType = decorations[d];
@@ -468,19 +466,52 @@ class BiomeManager {
         if (this._decorationPositionSet.has(gridKey)) continue;
         this._decorationPositionSet.add(gridKey);
 
-        var g = scene.add.graphics();
         var alpha = decType.alpha || 1.0;
-
-        this._drawDecoration(g, decType, x, y, alpha);
-
-        g.setDepth(1);
-        this._decorationPool.push(g);
+        this._decorationPool.push({ x: x, y: y, decType: decType, alpha: alpha });
 
         // Track torch decorations for flicker
         if (decType.type === 'torch' && decType.flicker) {
-          this._torchFlickerTimers.push({ gfx: g, baseAlpha: alpha, timer: Math.random() * 500 });
+          this._torchFlickerTimers.push({ idx: this._decorationPool.length - 1, baseAlpha: alpha, timer: Math.random() * 500 });
         }
       }
+    }
+
+    // Render immediately
+    this._renderDecorations();
+  }
+
+  /** Batch-render all decorations into a single Graphics object (1 draw call vs N) */
+  _renderDecorations() {
+    var gfx = this._decorationGraphics;
+    if (!gfx) return;
+    gfx.clear();
+
+    var scene = this.scene;
+    if (!scene.cameras || !scene.cameras.main) return;
+
+    var cam = scene.cameras.main;
+    var margin = 200;
+    var viewLeft = cam.worldView.x - margin;
+    var viewRight = cam.worldView.x + cam.width + margin;
+    var viewTop = cam.worldView.y - margin;
+    var viewBottom = cam.worldView.y + cam.height + margin;
+
+    for (var i = 0; i < this._decorationPool.length; i++) {
+      var d = this._decorationPool[i];
+
+      // Viewport culling
+      if (d.x < viewLeft || d.x > viewRight || d.y < viewTop || d.y > viewBottom) continue;
+
+      // Torch flicker alpha modulation
+      var alpha = d.alpha;
+      for (var t = 0; t < this._torchFlickerTimers.length; t++) {
+        if (this._torchFlickerTimers[t].idx === i) {
+          alpha = this._torchFlickerTimers[t]._currentAlpha || alpha;
+          break;
+        }
+      }
+
+      this._drawDecoration(gfx, d.decType, d.x, d.y, alpha);
     }
   }
 
@@ -575,7 +606,7 @@ class BiomeManager {
     var camY = scene.cameras.main.worldView.y;
     var camW = scene.cameras.main.worldView.width;
     var camH = scene.cameras.main.worldView.height;
-    var margin = 200;
+    var margin = 600; // Keep a larger buffer to avoid constant respawning
 
     var minX = camX - margin;
     var maxX = camX + camW + margin;
@@ -584,28 +615,28 @@ class BiomeManager {
 
     for (var i = this._decorationPool.length - 1; i >= 0; i--) {
       var d = this._decorationPool[i];
-      if (!d || !d.active) {
-        this._decorationPool.splice(i, 1);
-        continue;
-      }
-      // Get position from the graphics object
       if (d.x < minX || d.x > maxX || d.y < minY || d.y > maxY) {
-        d.destroy();
         this._decorationPool.splice(i, 1);
       }
     }
+
+    // Re-render after culling
+    this._renderDecorations();
   }
 
   _updateTorchFlicker() {
+    var needsRender = false;
     for (var i = 0; i < this._torchFlickerTimers.length; i++) {
       var entry = this._torchFlickerTimers[i];
-      if (!entry.gfx || !entry.gfx.active) continue;
+      if (entry.idx >= this._decorationPool.length) continue;
       entry.timer += 16; // ~60fps
       if (entry.timer > 80 + Math.random() * 120) {
         entry.timer = 0;
-        entry.gfx.setAlpha(entry.baseAlpha * (0.6 + Math.random() * 0.4));
+        entry._currentAlpha = entry.baseAlpha * (0.6 + Math.random() * 0.4);
+        needsRender = true;
       }
     }
+    if (needsRender) this._renderDecorations();
   }
 
   // ── Enemy Affinity (public API for SpawnManager) ──
@@ -764,12 +795,28 @@ class BiomeManager {
     var hw = GAME_CONFIG.worldWidth / 2;
     var hh = GAME_CONFIG.worldHeight / 2;
     var ts = GAME_CONFIG.tileSize;
+
+    // Only draw visible ground grid within camera bounds (not entire world)
+    var camW = scene.scale.width;
+    var camH = scene.scale.height;
+    var startX = Math.floor(-hw / ts) * ts;
+    var startY = Math.floor(-hh / ts) * ts;
+
+    // Draw initial viewport area — will be redrawn as camera moves
+    this._drawGroundForView(g, -camW / 2, -camH / 2, camW, camH, hw, hh, ts);
+    g.setDepth(0);
+    this._groundGraphics = g;
+  }
+
+  /** Redraw ground grid for current camera viewport */
+  _drawGroundForView(g, vx, vy, vw, vh, hw, hh, ts) {
+    // Grid is static — draw full world since it's a single one-time cost
+    // The grid lines are thin and the draw call is cheap compared to hundreds of graphics objects
     for (var x = -hw; x <= hw; x += ts) {
       g.lineBetween(x, -hh, x, hh);
     }
     for (var y = -hh; y <= hh; y += ts) {
       g.lineBetween(-hw, y, hw, y);
     }
-    g.setDepth(0);
   }
 }

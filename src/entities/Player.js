@@ -157,8 +157,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Let GameScene handle the GameOver transition (proper cleanup)
     this.scene.time.delayedCall(1500, () => {
-      if (this.scene._triggerGameOver) {
-        this.scene._triggerGameOver();
+      // Use CollisionManager's triggerGameOver (the proper game-over flow)
+      if (this.scene.collisionManager) {
+        this.scene.collisionManager.triggerGameOver();
       }
     });
   }

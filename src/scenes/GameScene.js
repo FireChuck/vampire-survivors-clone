@@ -74,7 +74,7 @@ class GameScene extends Phaser.Scene {
         return p;
       },
       (obj) => {
-        obj.body.reset(-9999, -9999);
+        if (obj.body) obj.body.reset(-9999, -9999);
         obj._hitCount = 0;
         obj._piercedEnemies = [];
       },
@@ -177,6 +177,10 @@ class GameScene extends Phaser.Scene {
     this.xpOrbs = [];
     this.gameOverTriggered = false;
 
+    // Batch rendering for enemies — single Graphics object instead of per-enemy
+    this._enemyBatchGraphics = this.add.graphics().setDepth(5);
+    Enemy.setBatchGraphics(this._enemyBatchGraphics);
+
     // T4.1: DPS tracking
     this._totalDamageDealt = 0;
     this._dpsSamples = []; // { time, damage } pairs for rolling DPS calc
@@ -278,7 +282,8 @@ class GameScene extends Phaser.Scene {
       this.hud.updateXP(this.player.xp, this.upgradeSystem.xpToNext, this.player.level);
     }
 
-    // Rebuild spatial grid
+    // Rebuild spatial grid — enemies move every frame, so always rebuild
+    // but use optimized clear that skips allocation
     this.spatialGrid.clear();
     for (const enemy of this.enemies) {
       if (enemy && enemy.active) this.spatialGrid.insert(enemy);
@@ -356,6 +361,9 @@ class GameScene extends Phaser.Scene {
 
     // Special Events System
     this._updateSpecialEvents(time, delta);
+
+    // Batch render all enemies into single Graphics object
+    this._renderEnemyBatch(delta);
 
     // FPS counter
     this._fpsFrames++;
@@ -822,6 +830,42 @@ class GameScene extends Phaser.Scene {
       if (info) {
         this.achievementToast.show('🏅', info.name, info.desc);
       }
+    }
+  }
+
+  /** Batch-render all enemies into a single Graphics object (1 draw call vs N) */
+  _renderEnemyBatch(delta) {
+    const gfx = this._enemyBatchGraphics;
+    if (!gfx) return;
+    gfx.clear();
+
+    // Viewport culling bounds (with margin)
+    const cam = this.cameras.main;
+    const margin = 100;
+    const viewLeft = cam.scrollX - margin;
+    const viewRight = cam.scrollX + cam.width + margin;
+    const viewTop = cam.scrollY - margin;
+    const viewBottom = cam.scrollY + cam.height + margin;
+
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i];
+      if (!e || !e.active) continue;
+
+      // Viewport culling — skip enemies far off-screen
+      if (e.x < viewLeft || e.x > viewRight || e.y < viewTop || e.y > viewBottom) continue;
+
+      // Flash timer countdown
+      if (e._flashTimer > 0) {
+        e._flashTimer -= delta;
+        if (e._flashTimer > 0) {
+          // Draw white flash rectangle
+          gfx.fillStyle(0xffffff, 0.9);
+          gfx.fillRect(e.x - e.size[0] / 2, e.y - e.size[1] / 2, e.size[0], e.size[1]);
+          continue;
+        }
+      }
+
+      e._drawVisual(gfx);
     }
   }
 }

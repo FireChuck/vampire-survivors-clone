@@ -31,6 +31,8 @@ class ObjectPool {
     obj.setActive(true);
     obj.setVisible(true);
     if (obj.body) obj.body.enable = true;
+    // Re-add to display list when reactivated
+    if (typeof obj.addToDisplayList === 'function') obj.addToDisplayList();
     this._activeCount++;
     return obj;
   }
@@ -40,6 +42,8 @@ class ObjectPool {
     obj.setActive(false);
     obj.setVisible(false);
     if (obj.body) obj.body.enable = false;
+    // Remove from display list so WebGL renderer skips it entirely
+    if (typeof obj.removeFromDisplayList === 'function') obj.removeFromDisplayList();
     this._pool.push(obj);
     if (this._activeCount > 0) this._activeCount--;
   }

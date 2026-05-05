@@ -18,6 +18,19 @@ class SpatialGrid {
     // Flat array: cells[col * rows + row] = [entity, ...]
     this._cells = new Array(this.cols * this.rows);
     this._entityCell = new Map(); // entity -> cell index
+
+    // Dirty flag — skip rebuild when nothing moved
+    this._dirty = true;
+  }
+
+  /** Mark grid as needing rebuild (call when entities move) */
+  markDirty() {
+    this._dirty = true;
+  }
+
+  /** Returns true if rebuild is needed */
+  get needsRebuild() {
+    return this._dirty;
   }
 
   clear() {
@@ -25,6 +38,7 @@ class SpatialGrid {
       this._cells[i] = null;
     }
     this._entityCell.clear();
+    this._dirty = false;
   }
 
   _toCell(x, y) {
