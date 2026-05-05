@@ -100,48 +100,7 @@ class HUD {
       fontStyle: 'bold', stroke: '#000', strokeThickness: 3
     }).setOrigin(0.5).setScrollFactor(0).setDepth(2000).setAlpha(0);
 
-    // ── QoL T4: Compact Mode Toggle ──
-    this._compactMode = false;
-    this._compactBtn = scene.add.text(sw - pad, pad + 46, '⊞', {
-      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#666',
-      stroke: '#000', strokeThickness: 2
-    }).setOrigin(1, 0).setScrollFactor(0).setDepth(52).setInteractive({ useHandCursor: true });
-    this._compactBtn.on('pointerdown', () => this.toggleCompactMode());
-    this._compactBtn.on('pointerover', () => this._compactBtn.setStyle({ color: '#aaa' }));
-    this._compactBtn.on('pointerout', () => this._compactBtn.setStyle({ color: '#666' }));
-
     this._timerEvent = null;
-  }
-
-  // ── QoL T4: Compact Mode ──
-
-  toggleCompactMode() {
-    this._compactMode = !this._compactMode;
-    const scale = this._compactMode ? 0.75 : 1;
-    const alpha = this._compactMode ? 0.6 : 1;
-
-    // Scale down HUD panel
-    this._panel.setScale(scale);
-    this._panel.setAlpha(alpha);
-
-    // Scale individual elements
-    this.hpBg.setScale(scale);
-    this._hpGraphics.setScale(scale);
-    this.hpText.setScale(scale);
-    this.xpBg.setScale(scale);
-    this._xpGraphics.setScale(scale);
-    this.levelText.setScale(scale);
-    this.killText.setScale(scale);
-    this._xpPreviewText.setScale(scale);
-
-    // Timer and score
-    this.timerText.setScale(scale);
-    this.scoreText.setScale(scale);
-    this.enemyText.setScale(scale);
-
-    // Compact button indicator
-    this._compactBtn.setText(this._compactMode ? '⊟' : '⊞');
-    this._compactBtn.setStyle({ color: this._compactMode ? '#4ecdc4' : '#666' });
   }
 
   /**
@@ -535,54 +494,6 @@ class HUD {
     });
 
     this._audioMiniTexts = [label, hint, plusBtn, minusBtn];
-  }
-
-  // ── Evolution Prompt (auto-accept after 5s or tap to accept) ──
-  showEvolutionPrompt(evo) {
-    const scene = this.scene;
-    if (!evo || !evo.recipe) return;
-
-    const sw = scene.scale.width;
-    const sh = scene.scale.height;
-
-    const bg = scene.add.rectangle(sw / 2, sh * 0.75, sw * 0.8, 80, 0x1a0030, 0.9)
-      .setScrollFactor(0).setDepth(100).setStrokeStyle(2, evo.recipe.color, 0.8);
-
-    const nameA = WEAPON_TYPES[evo.weaponA.key]?.name || evo.weaponA.key;
-    const nameB = WEAPON_TYPES[evo.weaponB.key]?.name || evo.weaponB.key;
-
-    const txt = scene.add.text(sw / 2, sh * 0.75 - 12, `⚡ EVOLUTION READY!\n${nameA} + ${nameB} → ${evo.recipe.name}`, {
-      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
-      fontStyle: 'bold', align: 'center', stroke: '#000000', strokeThickness: 3
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
-
-    const hint = scene.add.text(sw / 2, sh * 0.75 + 22, 'Tap to accept (auto-accept in 5s)', {
-      fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#aaaaaa', align: 'center'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
-
-    // Auto-accept after 5s
-    const timer = scene.time.delayedCall(5000, () => {
-      _acceptEvolution();
-    });
-
-    const _acceptEvolution = () => {
-      scene.time.removeEvent(timer);
-      if (!scene.evolutionSystem || !scene.weaponManager) return;
-      const candidates = scene.evolutionSystem.checkEvolutions(scene.weaponManager);
-      const match = candidates.find(c => c.recipe.evolved === evo.recipe.evolved);
-      if (match) {
-        scene.evolutionSystem.evolve(scene.weaponManager, match);
-        if (this.updateWeapons) this.updateWeapons(scene.weaponManager.weapons);
-      }
-      bg.destroy();
-      txt.destroy();
-      hint.destroy();
-    };
-
-    bg.setInteractive();
-    bg.on('pointerdown', _acceptEvolution);
-    txt.setInteractive();
-    txt.on('pointerdown', _acceptEvolution);
   }
 
   destroy() {

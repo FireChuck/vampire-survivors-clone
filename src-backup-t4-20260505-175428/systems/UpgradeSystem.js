@@ -320,17 +320,6 @@ class UpgradeSystem {
           this.player.pickupRange += upgrade.value;
           break;
       }
-
-      // QoL: Show stat toast for the upgrade
-      if (this.scene.showStatToast && upgrade.name) {
-        const statEmoji = {
-          maxHp: '❤️', speed: '👟', damageMultiplier: '⚔️',
-          armor: '🛡️', hpRegen: '💚', xpMultiplier: '⭐',
-          cooldownReduction: '⚡', pickupRange: '🧲'
-        };
-        const emoji = statEmoji[upgrade.stat] || '📦';
-        this.scene.showStatToast(`${emoji} ${upgrade.name}`);
-      }
     }
 
     if (this.hud) {
@@ -396,16 +385,11 @@ class UpgradeSystem {
       details = upgrade.description || '';
     }
 
-    // QoL T4: Enhanced tooltip with description + stat preview
-    const hasDescription = upgrade.description && upgrade.description !== details;
-    const fullText = hasDescription ? `${details}\n${upgrade.description}` : details;
+    if (!details) return;
 
-    if (!details && !upgrade.description) return;
-
-    // Background — wider for enhanced tooltip
-    const tw = 220;
-    const lines = fullText.split('\n').length;
-    const th = 20 + lines * 14;
+    // Background
+    const tw = 200;
+    const th = 28;
     const tx = Math.max(tw / 2 + 5, Math.min(scene.scale.width - tw / 2 - 5, x));
     const ty = Math.min(scene.scale.height - th - 10, y);
 
@@ -413,9 +397,9 @@ class UpgradeSystem {
       .setStrokeStyle(1, 0x4488ff, 0.8)
       .setOrigin(0.5).setScrollFactor(0).setDepth(250);
 
-    this._tooltipText = scene.add.text(tx, ty, fullText, {
+    this._tooltipText = scene.add.text(tx, ty, details, {
       fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#88ccff',
-      wordWrap: { width: tw - 10 }, align: 'center', lineSpacing: 2
+      wordWrap: { width: tw - 10 }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(251);
   }
 

@@ -200,40 +200,6 @@ class Minimap {
       g.lineStyle(1, 0xffffff, 0.25);
       g.strokeRect(camLeft, camTop, camW, camH);
     }
-
-    // ── QoL: Enemy Density Heatmap ──
-    // Divide minimap into grid cells, color by enemy density
-    const gridCells = 6;
-    const cellW = this.size / gridCells;
-    const cellH = this.size / gridCells;
-    const densityMap = {};
-
-    for (let i = 0; i < enemies.length; i++) {
-      const e = enemies[i];
-      if (!e || !e.active || e.isBoss) continue;
-
-      const mx = (e.x + halfW) * sx;
-      const my = (e.y + halfH) * sy;
-      const cellX = Math.floor(mx / cellW);
-      const cellY = Math.floor(my / cellH);
-      const key = cellX + ',' + cellY;
-      densityMap[key] = (densityMap[key] || 0) + 1;
-    }
-
-    // Draw heatmap overlay
-    for (const key in densityMap) {
-      const count = densityMap[key];
-      if (count < 3) continue; // skip low density
-
-      const parts = key.split(',');
-      const cx = parseInt(parts[0]) * cellW;
-      const cy = parseInt(parts[1]) * cellH;
-
-      // Intensity based on count (3+ = light, 10+ = strong)
-      const intensity = Math.min(0.4, count * 0.03);
-      g.fillStyle(0xff0000, intensity);
-      g.fillRect(ox + cx, oy + cy, cellW, cellH);
-    }
   }
 
   destroy() {

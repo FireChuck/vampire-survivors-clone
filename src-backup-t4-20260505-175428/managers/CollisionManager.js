@@ -44,20 +44,6 @@ class CollisionManager {
       if (scene.player.stats.explosionOnKill) {
         scene.weaponManager.explosionOnKill(data.x, data.y);
       }
-      // Track boss kills for character unlock progression
-      if (data.isBoss) {
-        scene._bossKillsThisRun = (scene._bossKillsThisRun || 0) + 1;
-      }
-    });
-
-    // Boss kill → spawn 1-3 content-type chests
-    scene.events.on('bossKilled', (data) => {
-      scene.spawnManager.spawnBossChests(data.x, data.y);
-    });
-
-    // Mini-boss kill → spawn 1 mystery chest
-    scene.events.on('miniBossKilled', (data) => {
-      scene.spawnManager.spawnMiniBossChest(data.x, data.y);
     });
 
     scene.events.on('weaponAOE', (data) => {
@@ -80,13 +66,6 @@ class CollisionManager {
     });
     scene.events.on('upgradeWeaponLevel', () => {
       scene.weaponManager.handleWeaponLevelUpgrade();
-      // Check for available evolutions after level up
-      if (scene.evolutionSystem) {
-        const evo = scene.evolutionSystem.onWeaponLevelUp(scene.weaponManager);
-        if (evo && scene.hud && scene.hud.showEvolutionPrompt) {
-          scene.hud.showEvolutionPrompt(evo);
-        }
-      }
     });
   }
 
@@ -205,10 +184,7 @@ class CollisionManager {
         time: scene.hud ? scene.hud.getElapsedTime() : 0,
         itemsCollected: scene._itemsCollected || 0,
         dps: scene.getDPS ? scene.getDPS() : 0,
-        totalDamageDealt: scene._totalDamageDealt || 0,
-        bossKills: scene._bossKillsThisRun || 0,
-        damageTaken: scene._totalDamageTaken || 0,
-        abilitiesUsed: scene._abilitiesUsedCount || 0
+        totalDamageDealt: scene._totalDamageDealt || 0
       };
 
       const achievementsBefore = [...scene.meta.data.achievements];
@@ -219,12 +195,6 @@ class CollisionManager {
 
       stats.wasHighScore = wasHighScore || stats.score >= scene.meta.data.highScore;
       stats.newAchievements = newAchievements;
-
-      // Pass in-game achievement data
-      if (scene.achievementSystem) {
-        stats.inGameAchievements = scene.achievementSystem.getUnlockedList();
-        stats.inGameAchievementStats = scene.achievementSystem.getStats();
-      }
 
       scene.scene.stop('GameScene');
       scene.scene.start('GameOverScene', stats);

@@ -13,37 +13,8 @@ class AudioManager {
     this._sfxVolume = 0.7;
     this._musicVolume = 0.3;
 
-    // QoL T4: Load persisted settings from localStorage
-    this._loadSettings();
-
     // Lazy-init on first user interaction
     this._initOnInteraction();
-  }
-
-  // ── QoL T4: Persistent Settings ──
-
-  _loadSettings() {
-    try {
-      const saved = localStorage.getItem('vs_audio_settings');
-      if (saved) {
-        const s = JSON.parse(saved);
-        if (typeof s.volume === 'number') this._volume = s.volume;
-        if (typeof s.sfxVolume === 'number') this._sfxVolume = s.sfxVolume;
-        if (typeof s.musicVolume === 'number') this._musicVolume = s.musicVolume;
-        if (typeof s.muted === 'boolean') this._muted = s.muted;
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  _saveSettings() {
-    try {
-      localStorage.setItem('vs_audio_settings', JSON.stringify({
-        volume: this._volume,
-        sfxVolume: this._sfxVolume,
-        musicVolume: this._musicVolume,
-        muted: this._muted
-      }));
-    } catch (e) { /* ignore */ }
   }
 
   _initOnInteraction() {
@@ -340,40 +311,6 @@ class AudioManager {
     });
   }
 
-  // ── QoL T4: Kill Streak Sound Variations ──
-
-  playKillStreak(count) {
-    this._play((t) => {
-      if (count >= 100) {
-        // GODLIKE: epic fanfare — multi-layered ascending chords
-        this._osc('sine', 523, t, 0.15, 0.2);
-        this._osc('sine', 659, t + 0.08, 0.15, 0.2);
-        this._osc('sine', 784, t + 0.16, 0.15, 0.2);
-        this._osc('sine', 1047, t + 0.24, 0.3, 0.25);
-        this._osc('triangle', 523, t + 0.24, 0.3, 0.15);
-        this._noise(t + 0.3, 0.15, 0.08);
-      } else if (count >= 50) {
-        // DOMINATING: dramatic rising tones + shimmer
-        this._osc('square', 440, t, 0.12, 0.15);
-        this._osc('square', 554, t + 0.1, 0.12, 0.15);
-        this._osc('square', 659, t + 0.2, 0.2, 0.2);
-        this._osc('sine', 880, t + 0.3, 0.25, 0.15);
-        this._noise(t + 0.25, 0.1, 0.06);
-      } else if (count >= 25) {
-        // MASSACRE: intense dual-tone + impact
-        this._osc('sawtooth', 330, t, 0.1, 0.2);
-        this._osc('sawtooth', 440, t + 0.08, 0.15, 0.2);
-        this._osc('sine', 660, t + 0.16, 0.2, 0.15);
-        this._noise(t + 0.1, 0.12, 0.12);
-      } else if (count >= 10) {
-        // UNSTOPPABLE: punchy quick notes
-        this._osc('triangle', 440, t, 0.08, 0.18);
-        this._osc('triangle', 550, t + 0.06, 0.1, 0.18);
-        this._osc('triangle', 660, t + 0.12, 0.15, 0.2);
-      }
-    });
-  }
-
   playLightningChain() {
     this._play((t) => {
       this._osc('sine', 1200, t, 0.05, 0.15);
@@ -395,7 +332,6 @@ class AudioManager {
     if (this.masterGain) {
       this.masterGain.gain.value = this._muted ? 0 : this._volume;
     }
-    this._saveSettings();
     return this._muted;
   }
 
@@ -404,7 +340,6 @@ class AudioManager {
     if (this.masterGain && !this._muted) {
       this.masterGain.gain.value = this._volume;
     }
-    this._saveSettings();
   }
 
   setSFXVolume(v) {
@@ -412,7 +347,6 @@ class AudioManager {
     if (this.sfxGain) {
       this.sfxGain.gain.value = this._sfxVolume;
     }
-    this._saveSettings();
   }
 
   setMusicVolume(v) {
@@ -420,7 +354,6 @@ class AudioManager {
     if (this.musicGain) {
       this.musicGain.gain.value = this._musicVolume;
     }
-    this._saveSettings();
   }
 
   destroy() {

@@ -89,11 +89,6 @@ class ScreenEdgeIndicators {
           size = 10;
           alpha = 0.9;
           break;
-        case 'elite':
-          color = 0xffdd00;
-          size = 8;
-          alpha = 0.85;
-          break;
         case 'item':
           color = 0x22ff44;
           size = 5;

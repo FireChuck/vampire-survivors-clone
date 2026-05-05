@@ -12,43 +12,6 @@ class ParticleSystem {
     this._poolMax = 200;   // Pre-alloc pool size limit
     this._recycledTotal = 0;
     this._spawnsDenied = 0;
-
-    // QoL T4: Particle Quality Setting (Low/Med/High)
-    this._qualityLevel = 'high'; // default
-    this._loadQualitySetting();
-    this._applyQualityLevel();
-  }
-
-  // ── QoL T4: Particle Quality ──
-
-  _loadQualitySetting() {
-    try {
-      const saved = localStorage.getItem('vs_particle_quality');
-      if (saved === 'low' || saved === 'medium' || saved === 'high') {
-        this._qualityLevel = saved;
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  _applyQualityLevel() {
-    switch (this._qualityLevel) {
-      case 'low': this._maxActive = 150; break;
-      case 'medium': this._maxActive = 300; break;
-      case 'high': this._maxActive = 500; break;
-    }
-  }
-
-  setQuality(level) {
-    if (level !== 'low' && level !== 'medium' && level !== 'high') return;
-    this._qualityLevel = level;
-    this._applyQualityLevel();
-    try {
-      localStorage.setItem('vs_particle_quality', level);
-    } catch (e) { /* ignore */ }
-  }
-
-  getQuality() {
-    return this._qualityLevel;
   }
 
   // ── Emit Methods ──

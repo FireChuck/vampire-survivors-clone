@@ -34,19 +34,9 @@ class GameScene extends Phaser.Scene {
       this.player.attackSpeed = cs.attackSpeed;
       this.player.stats.speed = cs.speed;
       this.player.stats.maxHp = cs.maxHp;
-      // Character-specific stats
-      if (cs.abilityDamageMultiplier) {
-        this.player.abilityDamageMultiplier = cs.abilityDamageMultiplier;
-      }
-      if (cs.critChance !== undefined) {
-        this.player.critChance = cs.critChance;
-      }
       // Store character color for visual
       this.player._charColor = this._incomingData.characterColor || 0x4488ff;
       this.player._charHighlight = this._incomingData.characterHighlight || 0x88bbff;
-      this._characterId = this._incomingData.characterId || 'default';
-    } else {
-      this._characterId = 'default';
     }
 
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
@@ -75,8 +65,6 @@ class GameScene extends Phaser.Scene {
 
     // Crit System
     this.critSystem = new CritSystem(this);
-    // Apply character crit chance
-    this.critSystem.applyStats({ critChance: this.player.critChance });
 
     // Performance Systems
     this.spatialGrid = new SpatialGrid(128, GAME_CONFIG.worldWidth, GAME_CONFIG.worldHeight);
@@ -152,9 +140,6 @@ class GameScene extends Phaser.Scene {
     // Synergy System (needs abilitySystem + weaponManager)
     this.synergySystem = new SynergySystem(this, this.abilitySystem, this.weaponManager);
 
-    // Evolution System (weapon merging at max level)
-    this.evolutionSystem = new EvolutionSystem(this);
-
     this.biomeManager = new BiomeManager(this);
 
     // Environmental Hazards System
@@ -172,10 +157,6 @@ class GameScene extends Phaser.Scene {
 
     // Achievement Toast System
     this.achievementToast = new AchievementToast(this);
-
-    // Achievement System — real-time tracking
-    this.achievementSystem = new AchievementSystem(this);
-    this.achievementSystem.init();
 
     // Performance Overlay (FPS Benchmark)
     this.performanceOverlay = new PerformanceOverlay(this);
@@ -223,10 +204,6 @@ class GameScene extends Phaser.Scene {
     // T4.1: Items collected tracking
     this._itemsCollected = 0;
 
-    // QoL T4: Extended stat tracking
-    this._totalDamageTaken = 0;
-    this._abilitiesUsedCount = 0;
-
     // HUD init
     this.hud.updateHP(this.player.hp, this.player.maxHp);
     this.hud.startTimer();
@@ -245,9 +222,6 @@ class GameScene extends Phaser.Scene {
       this.input.keyboard.on('keydown-N', () => {
         if (this.performanceOverlay) this.performanceOverlay.startBenchmark();
       });
-      this.input.keyboard.on('keydown-SHIFT', () => {
-        this._autoAimEnabled = !this._autoAimEnabled;
-      });
     }
 
     // ── QoL: Enemy Spawn Warning System ──
@@ -260,12 +234,7 @@ class GameScene extends Phaser.Scene {
       particleReduction: 1.0,    // 1.0 = normal, lower = fewer particles
       lowFPSThreshold: 30,
       checkInterval: 3000,
-      lastCheck: 0,
-      lowFPSDuration: 0,         // accumulated time below threshold
-      highFPSDuration: 0,        // accumulated time above threshold
-      lowFSTriggerSec: 5,        // 5s below threshold → reduce
-      highFSTriggerSec: 10,      // 10s above threshold → restore
-      lastToastTime: 0
+      lastCheck: 0
     };
 
     // ── QoL: Touch Sensitivity Setting ──
@@ -277,45 +246,6 @@ class GameScene extends Phaser.Scene {
       fontSize: '36px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
       fontStyle: 'bold', stroke: '#000000', strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(55).setAlpha(0);
-
-    // QoL T4: Combo Counter Reset Timer (visual bar under streak text)
-    this._comboTimerGfx = this.add.graphics().setScrollFactor(0).setDepth(54);
-
-    // ── QoL: Kill Combo System (kills/sec based) ──
-    this._killCombo = {
-      kills: [],           // timestamps of recent kills
-      comboLevel: 0,       // 0 = none, 2-10
-      lastComboLevel: 0,
-      windowMs: 1000,      // 1 second window for kills/sec
-      thresholds: [0, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50] // kills/sec → combo level
-    };
-    this._comboText = this.add.text(0, 0, '', {
-      fontSize: '28px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
-      fontStyle: 'bold', stroke: '#000000', strokeThickness: 4
-    }).setScrollFactor(0).setDepth(56).setAlpha(0);
-
-    // ── QoL: Damage Edge Flash (red vignette on damage) ──
-    this._damageFlashAlpha = 0;
-    this._damageFlashGfx = this.add.graphics().setScrollFactor(0).setDepth(49);
-
-    // ── QoL: Level-Up Stat Toast ──
-    this._statToastText = this.add.text(this.scale.width - 15, 85, '', {
-      fontSize: '14px', fontFamily: 'Arial, sans-serif', color: '#44ff44',
-      fontStyle: 'bold', stroke: '#000000', strokeThickness: 2,
-      align: 'right'
-    }).setOrigin(1, 0).setScrollFactor(0).setDepth(2001).setAlpha(0);
-    this._statToastQueue = [];
-    this._statToastActive = false;
-
-    // ── QoL: Auto-Aim Line ──
-    this._autoAimEnabled = false;
-    this._autoAimGfx = this.add.graphics().setDepth(4);
-
-    // ── QoL: Auto Performance Toast ──
-    this._perfToastText = this.add.text(this.scale.width / 2, this.scale.height - 60, '', {
-      fontSize: '13px', fontFamily: 'Arial, sans-serif', color: '#ffaa00',
-      fontStyle: 'bold', stroke: '#000000', strokeThickness: 3
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(2000).setAlpha(0);
 
     // ── Boss HP Bar ──
     this._bossBarContainer = this.add.container(this.scale.width / 2, 50).setScrollFactor(0).setDepth(60).setVisible(false);
@@ -350,24 +280,6 @@ class GameScene extends Phaser.Scene {
     this._startCountdownActive = true;
     this.player.setVelocity(0, 0);
     this._doStartCountdown();
-
-    // ── QoL T4: Auto-Pause on Tab Hidden ──
-    this._tabPauseOverlay = this.add.text(this.scale.width / 2, this.scale.height / 2, '⏸ PAUSED', {
-      fontSize: '48px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
-      fontStyle: 'bold', stroke: '#000000', strokeThickness: 6
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(300).setAlpha(0).setVisible(false);
-
-    this._onVisibilityChange = () => {
-      if (document.hidden && !this.isPaused && !this.gameOverTriggered && !this._startCountdownActive) {
-        this._togglePause();
-        this._tabPauseOverlay.setVisible(true);
-        this._tabPauseOverlay.setAlpha(1);
-      } else if (!document.hidden && this._tabPauseOverlay.visible) {
-        this._tabPauseOverlay.setVisible(false);
-        this._tabPauseOverlay.setAlpha(0);
-      }
-    };
-    document.addEventListener('visibilitychange', this._onVisibilityChange);
   }
 
   // ── Main Update Loop ──
@@ -377,9 +289,6 @@ class GameScene extends Phaser.Scene {
 
     // Particle system
     this.particleSystem.update(delta);
-
-    // Achievement system (real-time checks)
-    if (this.achievementSystem) this.achievementSystem.update(delta);
 
     // Vignette system (low HP warning)
     if (this.vignetteSystem) this.vignetteSystem.update(delta);
@@ -533,14 +442,8 @@ class GameScene extends Phaser.Scene {
     // QoL updates
     this._updateBossHPBar();
     this._updatePickupRadius();
-    this._updatePickupRadiusIndicator();
-    this._updateComboResetTimer();
     this._updateSpawnWarnings(delta);
     this._updatePerformanceAutoAdjust(time);
-    this._updateDamageFlash(delta);
-    this._updateKillCombo();
-    this._updateAutoAimLine();
-    this._processStatToastQueue();
 
     // QoL: Clear damage direction indicators each frame
     if (this.hud) this.hud.clearDamageDirections();
@@ -612,22 +515,6 @@ class GameScene extends Phaser.Scene {
     // Additional scaling: every 10 levels gives a big boost
     const milestoneBonus = Math.floor(this.player.level / 10) * 15;
     this.player.pickupRange = 60 + levelBonus + milestoneBonus;
-  }
-
-  // ── QoL T4: Pickup Radius Visual Indicator ──
-
-  _updatePickupRadiusIndicator() {
-    if (!this._pickupRadiusGfx) {
-      this._pickupRadiusGfx = this.add.graphics().setDepth(3);
-    }
-    const g = this._pickupRadiusGfx;
-    g.clear();
-    const px = this.player.x;
-    const py = this.player.y;
-    const r = this.player.pickupRange;
-    const alpha = 0.15 + 0.05 * Math.sin(Date.now() / 800);
-    g.lineStyle(1.5, 0x00ffff, alpha);
-    g.strokeCircle(px, py, r);
   }
 
   // ── Stress Test Mode ──
@@ -718,7 +605,6 @@ class GameScene extends Phaser.Scene {
     const buttons = [
       { label: '▶ Resume', color: 0x44ff44, action: () => this._togglePause() },
       { label: '🔊 Audio Controls', color: 0x4488ff, action: () => this._showAudioControls() },
-      { label: '✨ Particle Quality', color: 0x44ffaa, action: () => this._showParticleQualityMenu() },
       { label: '📊 Benchmark', color: 0xffaa00, action: () => {
         if (this.performanceOverlay) this.performanceOverlay.startBenchmark();
         this._togglePause();
@@ -769,67 +655,6 @@ class GameScene extends Phaser.Scene {
       this._pauseContainer.destroy();
       this._pauseContainer = null;
     }
-  }
-
-  // ── QoL T4: Particle Quality Menu ──
-
-  _showParticleQualityMenu() {
-    if (this._pauseContainer) this._pauseContainer.destroy();
-
-    const sw = this.scale.width;
-    const sh = this.scale.height;
-    this._pauseContainer = this.add.container(0, 0).setDepth(201).setScrollFactor(0);
-
-    const backBtn = this.add.text(20, 20, '← Back', {
-      fontSize: '16px', fontFamily: 'Arial, sans-serif', color: '#4488ff',
-      fontStyle: 'bold', stroke: '#000', strokeThickness: 2
-    }).setInteractive({ useHandCursor: true });
-    backBtn.on('pointerdown', () => this._showPauseMenu());
-    backBtn.on('pointerover', () => backBtn.setStyle({ color: '#66aaff' }));
-    backBtn.on('pointerout', () => backBtn.setStyle({ color: '#4488ff' }));
-    this._pauseContainer.add(backBtn);
-
-    const title = this.add.text(sw / 2, sh * 0.15, '✨ Particle Quality', {
-      fontSize: '28px', fontFamily: 'Arial, sans-serif', color: '#ffffff',
-      fontStyle: 'bold', stroke: '#000', strokeThickness: 4
-    }).setOrigin(0.5);
-    this._pauseContainer.add(title);
-
-    const currentQuality = this.particleSystem ? this.particleSystem.getQuality() : 'high';
-    const levels = [
-      { key: 'low', label: 'Low', desc: 'Fewer particles, better performance', color: 0x44ff44 },
-      { key: 'medium', label: 'Medium', desc: 'Balanced visuals and performance', color: 0xffaa00 },
-      { key: 'high', label: 'High', desc: 'Maximum visual effects', color: 0xff4444 }
-    ];
-
-    levels.forEach((lvl, i) => {
-      const y = sh * 0.3 + i * 70;
-      const cx = sw / 2;
-      const isActive = currentQuality === lvl.key;
-
-      const bg = this.add.rectangle(cx, y, 280, 50, isActive ? 0x3a3a6a : 0x2a2a4a, 0.95)
-        .setStrokeStyle(2, isActive ? lvl.color : 0x555555)
-        .setInteractive({ useHandCursor: true });
-      const name = this.add.text(cx - 100, y - 8, lvl.label, {
-        fontSize: '18px', fontFamily: 'Arial, sans-serif', color: isActive ? '#ffffff' : '#aaaaaa',
-        fontStyle: 'bold'
-      }).setOrigin(0, 0.5);
-      const desc = this.add.text(cx - 100, y + 12, lvl.desc, {
-        fontSize: '10px', fontFamily: 'Arial, sans-serif', color: '#666666'
-      }).setOrigin(0, 0.5);
-      const indicator = this.add.text(cx + 120, y, isActive ? '✓' : '', {
-        fontSize: '20px', color: lvl.color, fontStyle: 'bold'
-      }).setOrigin(0.5);
-
-      bg.on('pointerdown', () => {
-        if (this.particleSystem) this.particleSystem.setQuality(lvl.key);
-        this._showParticleQualityMenu(); // refresh
-      });
-      bg.on('pointerover', () => bg.setFillStyle(0x3a3a6a));
-      bg.on('pointerout', () => bg.setFillStyle(isActive ? 0x3a3a6a : 0x2a2a4a));
-
-      this._pauseContainer.add([bg, name, desc, indicator]);
-    });
   }
 
   _showAudioControls() {
@@ -1014,10 +839,6 @@ class GameScene extends Phaser.Scene {
     if (bonus > 0) {
       this.score += bonus;
       this._killStreak.scoreBonus += bonus;
-      // QoL T4: Kill streak sound variations
-      if (this.audioManager) {
-        this.audioManager.playKillStreak(count);
-      }
     }
 
     this._streakText.setText(label);
@@ -1035,36 +856,6 @@ class GameScene extends Phaser.Scene {
       delay: 200,
       ease: 'Power2'
     });
-  }
-
-  // ── QoL T4: Combo Counter Reset Timer ──
-
-  _updateComboResetTimer() {
-    const g = this._comboTimerGfx;
-    g.clear();
-
-    const streak = this._killStreak;
-    if (streak.count < 5 || this._streakText.alpha <= 0.05) return;
-
-    const now = this.spawnManager.gameTime;
-    const elapsed = now - streak.lastKillTime;
-    const remaining = Math.max(0, streak.comboTimeout - elapsed);
-    const ratio = remaining / streak.comboTimeout;
-
-    // Draw timer bar under streak text
-    const barW = 120;
-    const barH = 4;
-    const barX = this.scale.width / 2 - barW / 2;
-    const barY = this.scale.height * 0.25 + 24;
-
-    // Background
-    g.fillStyle(0x222222, 0.7);
-    g.fillRect(barX, barY, barW, barH);
-
-    // Fill — color changes from green to red as time runs out
-    const r = ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffaa00 : 0xff4444;
-    g.fillStyle(r, 0.9);
-    g.fillRect(barX, barY, barW * ratio, barH);
   }
 
   // ── QoL: Boss HP Bar ──
@@ -1363,34 +1154,18 @@ class GameScene extends Phaser.Scene {
     if (time - this._perfAutoAdjust.lastCheck < this._perfAutoAdjust.checkInterval) return;
     this._perfAutoAdjust.lastCheck = time;
 
-    const adj = this._perfAutoAdjust;
-
-    if (this._fpsValue < adj.lowFPSThreshold) {
-      adj.lowFPSDuration += adj.checkInterval / 1000;
-      adj.highFPSDuration = 0; // reset recovery counter
-
-      if (adj.lowFPSDuration >= adj.lowFSTriggerSec) {
-        adj.particleReduction = Math.max(0.2, adj.particleReduction - 0.2);
-        if (this.particleSystem) {
-          this.particleSystem._maxActive = Math.max(100, Math.floor(500 * adj.particleReduction));
-        }
-        adj.lowFPSDuration = 0;
-        this._showPerfToast('⚠️ Performance: Particles reduced', '#ffaa00');
+    if (this._fpsValue < this._perfAutoAdjust.lowFPSThreshold) {
+      // Reduce particle quality
+      this._perfAutoAdjust.particleReduction = Math.max(0.2, this._perfAutoAdjust.particleReduction - 0.2);
+      if (this.particleSystem) {
+        this.particleSystem._maxActive = Math.max(100, Math.floor(500 * this._perfAutoAdjust.particleReduction));
       }
-    } else if (this._fpsValue >= 50 && adj.particleReduction < 1.0) {
-      adj.highFPSDuration += adj.checkInterval / 1000;
-
-      if (adj.highFPSDuration >= adj.highFSTriggerSec) {
-        adj.particleReduction = Math.min(1.0, adj.particleReduction + 0.1);
-        if (this.particleSystem) {
-          this.particleSystem._maxActive = Math.floor(500 * adj.particleReduction);
-        }
-        adj.highFPSDuration = 0;
-        this._showPerfToast('✅ Performance: Particles restored', '#44ff44');
+    } else if (this._fpsValue >= 50 && this._perfAutoAdjust.particleReduction < 1.0) {
+      // Gradually restore quality
+      this._perfAutoAdjust.particleReduction = Math.min(1.0, this._perfAutoAdjust.particleReduction + 0.1);
+      if (this.particleSystem) {
+        this.particleSystem._maxActive = Math.floor(500 * this._perfAutoAdjust.particleReduction);
       }
-    } else {
-      adj.lowFPSDuration = 0;
-      adj.highFPSDuration = 0;
     }
   }
 
@@ -1400,193 +1175,5 @@ class GameScene extends Phaser.Scene {
     if (this.inputManager) {
       this.inputManager._sensitivityMultiplier = this._touchSensitivity;
     }
-  }
-
-  // ── QoL: Damage Edge Flash (red vignette on damage) ──
-
-  triggerDamageFlash() {
-    this._damageFlashAlpha = 0.6; // strong initial flash
-  }
-
-  _updateDamageFlash(delta) {
-    const g = this._damageFlashGfx;
-    g.clear();
-
-    if (this._damageFlashAlpha <= 0.005) return;
-
-    // Fade out over 200ms
-    this._damageFlashAlpha = Math.max(0, this._damageFlashAlpha - delta * 0.003);
-
-    const sw = this.scale.width;
-    const sh = this.scale.height;
-    const layers = 6;
-
-    for (let i = 0; i < layers; i++) {
-      const t = i / layers;
-      const inset = t * Math.min(sw, sh) * 0.3;
-      const alpha = this._damageFlashAlpha * (1 - t) * (1 - t);
-      g.fillStyle(0xff0000, alpha);
-      g.fillRect(inset, inset, sw - inset * 2, sh - inset * 2);
-    }
-  }
-
-  // ── QoL: Kill Combo System (kills/sec based, x2-x10) ──
-
-  recordKill() {
-    this._killCombo.kills.push(Date.now());
-  }
-
-  _updateKillCombo() {
-    const now = Date.now();
-    const windowMs = this._killCombo.windowMs;
-
-    // Prune old kills outside window
-    this._killCombo.kills = this._killCombo.kills.filter(t => now - t < windowMs);
-
-    const killsPerSec = this._killCombo.kills.length;
-    const thresholds = this._killCombo.thresholds;
-
-    // Determine combo level
-    let level = 0;
-    for (let i = thresholds.length - 1; i >= 0; i--) {
-      if (killsPerSec >= thresholds[i]) {
-        level = i;
-        break;
-      }
-    }
-
-    if (level !== this._killCombo.comboLevel) {
-      this._killCombo.comboLevel = level;
-      if (level >= 2) {
-        const comboColors = ['', '', '#88ff88', '#44ff44', '#ffd700', '#ffaa00', '#ff8800', '#ff4444', '#ff22ff', '#ff00ff', '#ff0066'];
-        const color = comboColors[level] || '#ff0066';
-        this._comboText.setText(`COMBO x${level}`);
-        this._comboText.setStyle({ color });
-        this._comboText.setAlpha(1);
-        this._comboText.setScale(1.1);
-
-        this.tweens.killTweensOf(this._comboText);
-        this.tweens.add({
-          targets: this._comboText,
-          scaleX: 1, scaleY: 1,
-          duration: 300,
-          ease: 'Back.easeOut'
-        });
-      } else {
-        this._comboText.setAlpha(0);
-      }
-      this._killCombo.lastComboLevel = level;
-    }
-
-    // Position combo text near player on screen
-    if (this._comboText.alpha > 0 && this.player) {
-      const cam = this.cameras.main;
-      const screenX = this.player.x - cam.scrollX + cam.width / 2;
-      const screenY = this.player.y - cam.scrollY - 30;
-      this._comboText.setPosition(
-        Math.max(60, Math.min(this.scale.width - 60, screenX)),
-        Math.max(60, Math.min(this.scale.height - 60, screenY))
-      );
-    }
-  }
-
-  // ── QoL: Level-Up Stat Toast ──
-
-  showStatToast(text) {
-    this._statToastQueue.push(text);
-    if (!this._statToastActive) {
-      this._processStatToastQueue();
-    }
-  }
-
-  _processStatToastQueue() {
-    if (this._statToastQueue.length === 0) {
-      this._statToastActive = false;
-      return;
-    }
-
-    this._statToastActive = true;
-    const text = this._statToastQueue.shift();
-
-    this._statToastText.setText(text);
-    this._statToastText.setAlpha(0);
-    this._statToastText.setY(this._statToastText.y - 5);
-
-    this.tweens.add({
-      targets: this._statToastText,
-      alpha: 1,
-      y: this._statToastText.y + 5,
-      duration: 250,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        this.time.delayedCall(2500, () => {
-          this.tweens.add({
-            targets: this._statToastText,
-            alpha: 0,
-            y: this._statToastText.y - 10,
-            duration: 300,
-            ease: 'Sine.easeIn',
-            onComplete: () => {
-              this._processStatToastQueue();
-            }
-          });
-        });
-      }
-    });
-  }
-
-  // ── QoL: Auto-Aim Line ──
-
-  _updateAutoAimLine() {
-    const g = this._autoAimGfx;
-    g.clear();
-
-    if (!this._autoAimEnabled || !this.player || !this.weaponManager) return;
-
-    // Find the weapon's nearest target
-    const weapons = this.weaponManager._weapons;
-    if (weapons.length === 0) return;
-
-    const w = weapons[0];
-    const range = w.type.range * 1.5;
-    const target = this.weaponManager.findNearestEnemy(range);
-
-    if (!target) return;
-
-    g.lineStyle(1, 0xffffff, 0.15);
-    g.beginPath();
-    g.moveTo(this.player.x, this.player.y);
-    g.lineTo(target.x, target.y);
-    g.strokePath();
-  }
-
-  // ── QoL: Auto Performance Toast ──
-
-  _showPerfToast(text, color) {
-    const now = Date.now();
-    if (now - this._perfAutoAdjust.lastToastTime < 10000) return; // max 1 toast per 10s
-    this._perfAutoAdjust.lastToastTime = now;
-
-    this._perfToastText.setText(text);
-    this._perfToastText.setStyle({ color });
-    this._perfToastText.setAlpha(0);
-
-    this.tweens.killTweensOf(this._perfToastText);
-    this.tweens.add({
-      targets: this._perfToastText,
-      alpha: 1,
-      duration: 300,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        this.time.delayedCall(2000, () => {
-          this.tweens.add({
-            targets: this._perfToastText,
-            alpha: 0,
-            duration: 400,
-            ease: 'Sine.easeIn'
-          });
-        });
-      }
-    });
   }
 }

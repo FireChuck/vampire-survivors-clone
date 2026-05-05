@@ -16,13 +16,6 @@ class GameOverScene extends Phaser.Scene {
         const cx = this.scale.width / 2;
         const cy = this.scale.height / 2;
 
-        // ── QoL: Quick Restart (R key) ──
-        if (this.input.keyboard) {
-            this.input.keyboard.on('keydown-R', () => {
-                this._quickRestart();
-            });
-        }
-
         // Dark vignette overlay
         const vignette = this.add.rectangle(cx, cy, this.scale.width, this.scale.height, 0x000000, 0.4)
             .setDepth(0).setScrollFactor(0);
@@ -100,21 +93,14 @@ class GameOverScene extends Phaser.Scene {
         const s = String(this.stats.time % 60).padStart(2, '0');
         const dps = this.stats.dps ? this.stats.dps.toFixed(1) : '0.0';
         const items = this.stats.itemsCollected || 0;
-        const totalDmg = this.stats.totalDamageDealt ? Math.floor(this.stats.totalDamageDealt).toLocaleString() : '0';
-        const dmgTaken = this.stats.damageTaken ? Math.floor(this.stats.damageTaken).toLocaleString() : '0';
-        const abilitiesUsed = this.stats.abilitiesUsed || 0;
-        const timeStr = `${m}:${s}`;
 
         const statsLines = [
             { text: `⭐ Score: ${this.stats.score}`, color: '#ffd700' },
             { text: `💀 Kills: ${this.stats.killCount}`, color: '#e94560' },
             { text: `📈 Level: ${this.stats.level}`, color: '#4ecdc4' },
-            { text: `⏱ Time: ${timeStr}`, color: '#aaaaff' },
+            { text: `⏱ Time: ${m}:${s}`, color: '#aaaaff' },
             { text: `📦 Items: ${items}`, color: '#ff88ff' },
-            { text: `🔥 DPS: ${dps}`, color: '#ff8800' },
-            { text: `⚔ Total Damage: ${totalDmg}`, color: '#ff6666' },
-            { text: `🩸 Damage Taken: ${dmgTaken}`, color: '#cc6688' },
-            { text: `✨ Abilities Used: ${abilitiesUsed}`, color: '#88ccff' }
+            { text: `🔥 DPS: ${dps}`, color: '#ff8800' }
         ];
 
         // Stats background panel
@@ -167,36 +153,7 @@ class GameOverScene extends Phaser.Scene {
         }
 
         // Play Again button — fade in last
-        // In-game achievement summary
-        var achSummaryY = cy + statsLines.length * 32 + (this.stats.newAchievements && this.stats.newAchievements.length > 0 ? 45 : 15);
-        if (this.stats.inGameAchievements && this.stats.inGameAchievements.length > 0) {
-            var achStats = this.stats.inGameAchievementStats || {};
-            var achList = this.stats.inGameAchievements;
-            var headerY = achSummaryY;
-            var header = this.add.text(cx, headerY, '🏅 In-Game Achievements (' + achList.length + '/' + (achStats.total || achList.length) + ')', {
-                fontSize: '15px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
-                fontStyle: 'bold', stroke: '#000', strokeThickness: 2
-            }).setOrigin(0.5).setDepth(10).setAlpha(0);
-            var cols = 3, colW = 180;
-            var startX = cx - ((Math.min(cols, achList.length) - 1) * colW) / 2;
-            var achTexts = [];
-            for (var i = 0; i < Math.min(achList.length, 6); i++) {
-                var a = achList[i];
-                var col = i % cols;
-                var row = Math.floor(i / cols);
-                var ax = startX + col * colW;
-                var ay = headerY + 28 + row * 22;
-                var t = this.add.text(ax, ay, a.icon + ' ' + a.name, {
-                    fontSize: '11px', fontFamily: 'Arial, sans-serif', color: '#cccccc',
-                    stroke: '#000', strokeThickness: 1
-                }).setOrigin(0.5).setDepth(10).setAlpha(0);
-                achTexts.push(t);
-            }
-            this.tweens.add({ targets: [header].concat(achTexts), alpha: 1, duration: 400, delay: 1600, ease: 'Sine.easeIn' });
-            var btnBaseY = headerY + 28 + Math.ceil(Math.min(achList.length, 6) / cols) * 22 + 15;
-        } else {
-            var btnBaseY = achSummaryY;
-        }
+        const btnBaseY = cy + statsLines.length * 32 + (this.stats.newAchievements && this.stats.newAchievements.length > 0 ? 50 : 20);
         const btn = this.add.rectangle(cx, btnBaseY, 220, 50, 0x4ecdc4)
             .setInteractive({ useHandCursor: true }).setDepth(10).setAlpha(0);
         const btnText = this.add.text(cx, btnBaseY, '▶ Play Again', {
@@ -263,22 +220,5 @@ class GameOverScene extends Phaser.Scene {
 
         // Fade-in the entire scene
         this.cameras.main.fadeIn(600, 0, 0, 0);
-
-        // ── QoL: Quick Restart hint ──
-        this.add.text(cx, menuY + 55, '⌨ Press R to Quick Restart', {
-            fontSize: '12px',
-            fontFamily: 'Arial, sans-serif',
-            color: '#555',
-            stroke: '#000',
-            strokeThickness: 1
-        }).setOrigin(0.5).setDepth(10);
-    }
-
-    _quickRestart() {
-        // Instant restart to CharacterSelectScene with same character
-        this.cameras.main.fadeOut(200, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-            this.scene.start('CharacterSelectScene');
-        });
     }
 }

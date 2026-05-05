@@ -20,8 +20,6 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     this.pickupRange = 60;
     this.damage = 10;
     this.attackSpeed = 1.0;
-    this.abilityDamageMultiplier = 1.0;
-    this.critChance = 0.05;
 
     // Nested stats for UpgradeSystem compatibility
     this.stats = {
@@ -95,11 +93,6 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     const reduced = Math.max(1, Math.floor(amount * armorMult));
     this.hp = Math.max(0, this.hp - reduced);
 
-    // QoL T4: Track damage taken for extended stats
-    if (this.scene._totalDamageTaken !== undefined) {
-      this.scene._totalDamageTaken += reduced;
-    }
-
     // Flash effect
     this.setTintFill(0xff0000);
     this.scene.time.delayedCall(100, () => {
@@ -109,11 +102,6 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     // Screen shake
     if (this.scene.cameras && this.scene.cameras.main) {
       this.scene.cameras.main.shake(200, 0.01);
-    }
-
-    // QoL: Damage edge flash
-    if (this.scene.triggerDamageFlash) {
-      this.scene.triggerDamageFlash();
     }
 
     // Invincibility frames
