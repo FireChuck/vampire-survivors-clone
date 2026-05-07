@@ -319,7 +319,8 @@ class WeaponManager {
       onComplete: () => g.destroy()
     });
 
-    for (const enemy of scene.enemies) {
+    const nearby = scene.spatialGrid.query(x, y, explosionRange);
+    for (const enemy of nearby) {
       if (!enemy || !enemy.active) continue;
       const dx = enemy.x - x;
       const dy = enemy.y - y;

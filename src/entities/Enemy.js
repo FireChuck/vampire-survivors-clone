@@ -167,23 +167,29 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  // ── Steering: Separation (avoid overlapping) ──
-  _steerSeparation(enemies) {
+  // ── Steering: Separation (avoid overlapping) — uses SpatialGrid for O(n) instead of O(n²) ──
+  _steerSeparation() {
     let sepX = 0, sepY = 0;
     const sepRadius = 30; // pixels
     let count = 0;
 
-    for (const other of enemies) {
-      if (other === this || !other.active) continue;
-      const dx = this.x - other.x;
-      const dy = this.y - other.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < sepRadius * sepRadius && d2 > 0.01) {
-        const d = Math.sqrt(d2);
-        const force = (sepRadius - d) / sepRadius;
-        sepX += (dx / d) * force;
-        sepY += (dy / d) * force;
-        count++;
+    // Use SpatialGrid instead of iterating all enemies — O(neighbors) instead of O(n)
+    const grid = this.scene.spatialGrid;
+    if (grid) {
+      const nearby = grid.query(this.x, this.y, sepRadius);
+      for (let i = 0; i < nearby.length; i++) {
+        const other = nearby[i];
+        if (other === this || !other.active) continue;
+        const dx = this.x - other.x;
+        const dy = this.y - other.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < sepRadius * sepRadius && d2 > 0.01) {
+          const d = Math.sqrt(d2);
+          const force = (sepRadius - d) / sepRadius;
+          sepX += (dx / d) * force;
+          sepY += (dy / d) * force;
+          count++;
+        }
       }
     }
 
@@ -252,8 +258,8 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 1) return;
 
-    // ── Run separation steering against all enemies ──
-    this._steerSeparation(this.scene.enemies || []);
+    // ── Run separation steering via SpatialGrid (O(neighbors), not O(n²)) ──
+    this._steerSeparation();
 
     // Determine chase target (direct or predicted for bosses)
     let targetX = player.x;
