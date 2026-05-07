@@ -250,6 +250,36 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
   update(time, delta) {
     this._lifetime += delta;
 
+    // Despawn conditions — check BEFORE expensive operations
+    if (this._lifetime > this._maxLifetime) {
+      this.destroy();
+      return;
+    }
+
+    // Range check (skip for boomerangs in return phase and aura)
+    if (!this.aura && (!this.boomerang || this._boomerangPhase === 'out')) {
+      const dx = this.x - this._originX;
+      const dy = this.y - this._originY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > this.range + 50) {
+        this.destroy();
+        return;
+      }
+    }
+
+    // Off screen despawn
+    const player = this.scene.player;
+    if (player && player.active) {
+      const margin = 200;
+      if (
+        this.x < player.x - margin || this.x > player.x + margin ||
+        this.y < player.y - margin || this.y > player.y + margin
+      ) {
+        this.destroy();
+        return;
+      }
+    }
+
     // Aura: don't despawn, follow player
     if (this.aura) {
       if (this.scene.player && this.scene.player.active) {
@@ -321,42 +351,16 @@ class Weapon extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    // Despawn conditions
-    if (this._lifetime > this._maxLifetime) {
-      this.destroy();
-      return;
-    }
-
-    // Range check (skip for boomerangs in return phase)
-    if (!this.boomerang || this._boomerangPhase === 'out') {
-      const dx = this.x - this._originX;
-      const dy = this.y - this._originY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > this.range + 50) {
-        this.destroy();
-        return;
-      }
-    }
-
-    // Off screen despawn
-    const player = this.scene.player;
-    if (player && player.active) {
-      const margin = 200;
-      if (
-        this.x < player.x - margin || this.x > player.x + margin ||
-        this.y < player.y - margin || this.y > player.y + margin
-      ) {
-        this.destroy();
-        return;
-      }
-    }
-
     // Update visual
     this._graphics.setPosition(this.x, this.y);
   }
 
   destroy() {
-    if (this._graphics) this._graphics.destroy();
+    if (this._graphics) {
+      this._graphics.clear();
+      this._graphics.setVisible(false);
+      this._graphics.setActive(false);
+    }
     super.destroy();
   }
 }

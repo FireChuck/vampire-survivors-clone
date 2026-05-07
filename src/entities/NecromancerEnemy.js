@@ -125,13 +125,8 @@ class NecromancerEnemy extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    // Redraw
-    this._drawVisual();
-
-    // HP bar
-    if (this.hp < this.maxHp) {
-      this._drawHPBar();
-    }
+    // NOTE: _drawVisual() is NOT called here — _renderEnemyBatch() handles it
+    // to avoid double-drawing the shared batch graphics every frame.
   }
 
   _summonMinion() {
@@ -157,53 +152,12 @@ class NecromancerEnemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  _drawHPBar(gfx) {
-    if (!gfx) gfx = Enemy.getBatchGraphics();
-    if (!gfx) return;
-    const barW = 32;
-    const barH = 3;
-    const px = this.x;
-    const py = this.y - 20;
-    const ratio = Math.max(0, this.hp / this.maxHp);
-
-    gfx.fillStyle(0x333333, 0.8);
-    gfx.fillRect(px - barW / 2, py, barW, barH);
-    const c = ratio > 0.5 ? 0x22cc22 : ratio > 0.25 ? 0xcccc22 : 0xcc2222;
-    gfx.fillStyle(c, 1);
-    gfx.fillRect(px - barW / 2, py, barW * ratio, barH);
-  }
-
   takeDamage(amount) {
     this.hp -= amount;
-    this._spawnDamageNumber(amount);
+    // NOTE: Damage numbers handled by CollisionManager via pooled DamageNumbers system
     if (this.hp <= 0) {
       this.onDeath();
     }
-  }
-
-  _spawnDamageNumber(amount) {
-    const text = this.scene.add.text(
-      this.x + (Math.random() - 0.5) * 20,
-      this.y - 22,
-      Math.floor(amount).toString(),
-      {
-        fontSize: amount >= 20 ? '16px' : '12px',
-        fontFamily: 'Arial, sans-serif',
-        color: amount >= 20 ? '#ff4444' : '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 2
-      }
-    ).setOrigin(0.5).setDepth(30);
-
-    this.scene.tweens.add({
-      targets: text,
-      y: text.y - 40,
-      alpha: 0,
-      duration: 800,
-      ease: 'Power2',
-      onComplete: () => text.destroy()
-    });
   }
 
   onDeath() {

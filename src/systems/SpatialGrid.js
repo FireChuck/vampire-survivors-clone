@@ -34,8 +34,15 @@ class SpatialGrid {
   }
 
   clear() {
-    for (let i = 0; i < this._cells.length; i++) {
-      this._cells[i] = null;
+    // Fast clear: only null out cells that were actually populated
+    // instead of iterating all cells (1457 for 6000x4000 @ 128px cells)
+    if (this._entityCell.size === 0) {
+      this._dirty = false;
+      return;
+    }
+    // Clear only occupied cells using the entityCell map
+    for (const idx of this._entityCell.values()) {
+      this._cells[idx] = null;
     }
     this._entityCell.clear();
     this._dirty = false;

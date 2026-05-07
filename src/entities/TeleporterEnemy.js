@@ -185,7 +185,7 @@ class TeleporterEnemy extends Phaser.Physics.Arcade.Sprite {
     this._graphics.fillStyle(0xffffff, 0.9);
     this._graphics.fillRect(-this.size[0] / 2, -this.size[1] / 2, this.size[0], this.size[1]);
 
-    this._spawnDamageNumber(amount);
+    // NOTE: Damage numbers handled by CollisionManager via pooled DamageNumbers system
 
     this.scene.time.delayedCall(80, () => {
       if (this.active) this._drawVisual();
@@ -194,32 +194,6 @@ class TeleporterEnemy extends Phaser.Physics.Arcade.Sprite {
     if (this.hp <= 0) {
       this.onDeath();
     }
-  }
-
-  _spawnDamageNumber(amount) {
-    const text = this.scene.add.text(
-      this.x + (Math.random() - 0.5) * 20,
-      this.y - this.size[1] / 2 - 5,
-      Math.floor(amount).toString(),
-      {
-        fontSize: amount >= 20 ? '16px' : '12px',
-        fontFamily: 'Arial, sans-serif',
-        color: amount >= 20 ? '#ff4444' : '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 2
-      }
-    ).setOrigin(0.5).setDepth(30);
-
-    const startY = text.y;
-    this.scene.tweens.add({
-      targets: text,
-      y: startY - 40,
-      alpha: 0,
-      duration: 800,
-      ease: 'Power2',
-      onComplete: () => text.destroy()
-    });
   }
 
   onDeath() {

@@ -92,6 +92,12 @@ class GameScene extends Phaser.Scene {
         if (obj.body) obj.body.reset(-9999, -9999);
         obj._hitCount = 0;
         obj._piercedEnemies = [];
+        // Hide ghost graphics when returning to pool
+        if (obj._graphics) {
+          obj._graphics.clear();
+          obj._graphics.setPosition(-9999, -9999);
+          obj._graphics.setVisible(false);
+        }
       },
       20
     );

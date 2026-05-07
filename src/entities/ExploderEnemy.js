@@ -99,7 +99,7 @@ class ExploderEnemy extends Phaser.Physics.Arcade.Sprite {
     this._graphics.fillStyle(0xffffff, 0.9);
     this._graphics.fillCircle(0, 0, 12);
 
-    this._spawnDamageNumber(amount);
+    // NOTE: Damage numbers handled by CollisionManager via pooled DamageNumbers system
 
     this.scene.time.delayedCall(80, () => {
       if (this.active) this._drawVisual();
@@ -108,31 +108,6 @@ class ExploderEnemy extends Phaser.Physics.Arcade.Sprite {
     if (this.hp <= 0) {
       this.onDeath();
     }
-  }
-
-  _spawnDamageNumber(amount) {
-    const text = this.scene.add.text(
-      this.x + (Math.random() - 0.5) * 20,
-      this.y - 16,
-      Math.floor(amount).toString(),
-      {
-        fontSize: amount >= 20 ? '16px' : '12px',
-        fontFamily: 'Arial, sans-serif',
-        color: amount >= 20 ? '#ff4444' : '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 2
-      }
-    ).setOrigin(0.5).setDepth(30);
-
-    this.scene.tweens.add({
-      targets: text,
-      y: text.y - 40,
-      alpha: 0,
-      duration: 800,
-      ease: 'Power2',
-      onComplete: () => text.destroy()
-    });
   }
 
   onDeath() {

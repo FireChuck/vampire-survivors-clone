@@ -393,39 +393,12 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
     // Flash timer — batch renderer will check this
     this._flashTimer = 80;
 
-    // Spawn damage number
-    this._spawnDamageNumber(amount);
+    // NOTE: Damage numbers are handled by CollisionManager via the pooled DamageNumbers system.
+    // Do NOT create individual Text+Tween here — it causes ghost object accumulation.
 
     if (this.hp <= 0) {
       this.onDeath();
     }
-  }
-
-  _spawnDamageNumber(amount) {
-    const text = this.scene.add.text(
-      this.x + (Math.random() - 0.5) * 20,
-      this.y - this.size[1] / 2 - 5,
-      Math.floor(amount).toString(),
-      {
-        fontSize: amount >= 20 ? '16px' : '12px',
-        fontFamily: 'Arial, sans-serif',
-        color: amount >= 20 ? '#ff4444' : '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 2
-      }
-    ).setOrigin(0.5).setDepth(30);
-
-    // Float up and fade
-    const startY = text.y;
-    this.scene.tweens.add({
-      targets: text,
-      y: startY - 40,
-      alpha: 0,
-      duration: 800,
-      ease: 'Power2',
-      onComplete: () => text.destroy()
-    });
   }
 
   onDeath() {

@@ -201,10 +201,24 @@ class WeaponManager {
     proj._speed = stats.speed;
     proj._direction = direction;
     proj._projSize = (WEAPON_TYPES[weaponKey].projectileSize || 6) + 3;
+    proj._weaponLevel = level || 1;
+    proj._lifetime = 0;
+    proj._maxLifetime = proj._speed > 0 ? (proj.range / proj._speed) * 1000 + 200 : 99999;
+    proj._hitEnemies = new Set();
+    proj._hitsRemaining = proj.piercing;
+    proj._originX = px;
+    proj._originY = py;
     if (proj.body) proj.body.setCircle(Math.max(2, proj._projSize), 0, 0);
     proj.setActive(true);
     proj.setVisible(true);
     proj.body.enable = true;
+    // Restore and redraw graphics for pooled projectiles
+    if (proj._graphics) {
+      proj._graphics.setVisible(true);
+      proj._graphics.setActive(true);
+      proj._graphics.setPosition(px, py);
+      proj._drawVisual();
+    }
     this._activeProjectiles.push(proj);
 
     if (scene.audioManager) scene.audioManager.playWeaponFire(weaponKey);

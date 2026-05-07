@@ -26,6 +26,7 @@ class SummonerEnemy extends Phaser.Physics.Arcade.Sprite {
     this._maxMinions = 5;
     this._minions = [];
     this._animTimer = 0;
+    this._flashTimer = 0;
 
     // Visual
     this._graphics = scene.add.graphics();
@@ -170,49 +171,14 @@ class SummonerEnemy extends Phaser.Physics.Arcade.Sprite {
   takeDamage(amount) {
     this.hp -= amount;
 
-    // Flash
-    this._graphics.clear();
-    this._graphics.fillStyle(0xffffff, 0.9);
-    this._graphics.fillCircle(0, 0, 13);
+    // Flash — batch renderer will check this via _flashTimer
+    this._flashTimer = 80;
 
-    // Damage number
-    this._spawnDamageNumber(amount);
-
-    this.scene.time.delayedCall(80, () => {
-      if (this.active) {
-        this._graphics.setPosition(this.x, this.y);
-        // Full redraw happens in update()
-      }
-    });
+    // NOTE: Damage numbers handled by CollisionManager via pooled DamageNumbers system
 
     if (this.hp <= 0) {
       this.onDeath();
     }
-  }
-
-  _spawnDamageNumber(amount) {
-    const text = this.scene.add.text(
-      this.x + (Math.random() - 0.5) * 20,
-      this.y - 20,
-      Math.floor(amount).toString(),
-      {
-        fontSize: amount >= 20 ? '16px' : '12px',
-        fontFamily: 'Arial, sans-serif',
-        color: amount >= 20 ? '#ff4444' : '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 2
-      }
-    ).setOrigin(0.5).setDepth(30);
-
-    this.scene.tweens.add({
-      targets: text,
-      y: text.y - 40,
-      alpha: 0,
-      duration: 800,
-      ease: 'Power2',
-      onComplete: () => text.destroy()
-    });
   }
 
   onDeath() {
@@ -324,12 +290,7 @@ class SummonMinion extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount) {
     this.hp -= amount;
-    this._graphics.clear();
-    this._graphics.fillStyle(0xffffff, 0.9);
-    this._graphics.fillRect(-5, -5, 10, 10);
-    this.scene.time.delayedCall(60, () => {
-      if (this.active) this._drawVisual();
-    });
+    // NOTE: Damage numbers handled by CollisionManager via pooled DamageNumbers system
     if (this.hp <= 0) this.onDeath();
   }
 
