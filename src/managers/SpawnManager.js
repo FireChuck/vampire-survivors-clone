@@ -12,7 +12,7 @@ class SpawnManager {
     var IS_MOB = window.IS_MOBILE;
     this.waveSystem = {
       currentWave: 0,
-      state: 'idle',           // idle | spawning | clearing | pause
+      state: 'idle',           // idle | announcing | spawning | clearing | pause
       spawnQueue: 0,           // enemies left to spawn this wave
       spawnTimer: 0,
       spawnInterval: IS_MOB ? 600 : 400,      // ms between individual spawns within a wave
@@ -52,6 +52,9 @@ class SpawnManager {
     switch (ws.state) {
       case 'idle':
         this._waveIdle(delta);
+        break;
+      case 'announcing':
+        // Wait for countdown to finish — _showWaveAnnouncement sets state to 'spawning'
         break;
       case 'warning':
         this._waveBossWarning(delta);
@@ -142,7 +145,7 @@ class SpawnManager {
   _startWave() {
     var ws = this.waveSystem;
     ws.currentWave++;
-    ws.state = 'spawning';
+    ws.state = 'announcing';  // Don't spawn yet — wait for countdown to finish
     ws.spawnTimer = 0;
     ws.waveKillCount = 0;
 
@@ -454,12 +457,10 @@ class SpawnManager {
   _showWaveAnnouncement(waveNum, isBossWave) {
     var scene = this.scene;
     var text = scene._waveText;
+    var self = this;
 
-    // Mobile: skip countdown (3,2,1) — just show "GO!" to reduce tween pressure
-    // Desktop: full countdown for dramatic effect
-    var countSteps = window.IS_MOBILE
-      ? [isBossWave ? '⚔ FIGHT! ⚔' : 'GO!']
-      : ['3', '2', '1', isBossWave ? '⚔ FIGHT! ⚔' : 'GO!'];
+    // QoL T4: Wave Announcer with Countdown (3... 2... 1... GO!)
+    var countSteps = ['3', '2', '1', isBossWave ? '⚔ FIGHT! ⚔' : 'GO!'];
     var idx = 0;
 
     var showNext = () => {
@@ -486,6 +487,10 @@ class SpawnManager {
           delay: 500,
           ease: 'Power2'
         });
+
+        // CRITICAL: NOW start spawning enemies — countdown is done
+        // This prevents physics object creation during tween animations
+        self.waveSystem.state = 'spawning';
         return;
       }
 

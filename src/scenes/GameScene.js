@@ -1028,8 +1028,7 @@ class GameScene extends Phaser.Scene {
       fontStyle: 'bold', stroke: '#000000', strokeThickness: 6
     }).setOrigin(0.5).setScrollFactor(0).setDepth(300);
 
-    // Mobile: skip countdown — just "GO!" to reduce initial tween + spawn pressure
-    const steps = window.IS_MOBILE ? ['GO!'] : ['3', '2', '1', 'GO!'];
+    const steps = ['3', '2', '1', 'GO!'];
     let idx = 0;
 
     const showNext = () => {
