@@ -11,85 +11,85 @@
     </style>
 </head>
 <body>
-    <script src="lib/phaser.min.js"></script>
+    <script defer src="lib/phaser.min.js"></script>
     <!-- nipplejs optional for mobile -->
-    <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js" onerror="console.warn('nipplejs not loaded, mobile controls disabled')"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js" onerror="console.warn('nipplejs not loaded, mobile controls disabled')"></script>
 
     <!-- Data (Clawd 2) -->
-    <script src="src/data/gameConfig.js"></script>
-    <script src="src/data/biomeDesign.js"></script>
-    <script src="src/data/enemyTypes.js"></script>
-    <script src="src/data/weaponTypes.js"></script>
-    <script src="src/data/upgradeTypes.js"></script>
-    <script src="src/data/abilityTypes.js"></script>
+    <script defer src="src/data/gameConfig.js"></script>
+    <script defer src="src/data/biomeDesign.js"></script>
+    <script defer src="src/data/enemyTypes.js"></script>
+    <script defer src="src/data/weaponTypes.js"></script>
+    <script defer src="src/data/upgradeTypes.js"></script>
+    <script defer src="src/data/abilityTypes.js"></script>
 
     <!-- Entities (Clawd 2) -->
-    <script src="src/entities/Player.js"></script>
-    <script src="src/entities/Enemy.js"></script>
-    <script src="src/entities/Weapon.js"></script>
-    <script src="src/entities/XPOrb.js"></script>
-    <script src="src/entities/SpeedBuffPickup.js"></script>
-    <script src="src/entities/Boss.js"></script>
-    <script src="src/entities/Chest.js"></script>
-    <script src="src/entities/SummonerEnemy.js"></script>
-    <script src="src/entities/ExploderEnemy.js"></script>
-    <script src="src/entities/TeleporterEnemy.js"></script>
-    <script src="src/entities/TankEnemy.js"></script>
-    <script src="src/entities/NecromancerEnemy.js"></script>
-    <script src="src/entities/EliteEnemy.js"></script>
-    <script src="src/entities/FireElementalEnemy.js"></script>
-    <script src="src/entities/LavaGolemEnemy.js"></script>
-    <script src="src/entities/MiniBoss.js"></script>
-    <script src="src/entities/BeamProjectile.js"></script>
-    <script src="src/entities/BoomerangProjectile.js"></script>
-    <script src="src/entities/LightningChainProjectile.js"></script>
+    <script defer src="src/entities/Player.js"></script>
+    <script defer src="src/entities/Enemy.js"></script>
+    <script defer src="src/entities/Weapon.js"></script>
+    <script defer src="src/entities/XPOrb.js"></script>
+    <script defer src="src/entities/SpeedBuffPickup.js"></script>
+    <script defer src="src/entities/Boss.js"></script>
+    <script defer src="src/entities/Chest.js"></script>
+    <script defer src="src/entities/SummonerEnemy.js"></script>
+    <script defer src="src/entities/ExploderEnemy.js"></script>
+    <script defer src="src/entities/TeleporterEnemy.js"></script>
+    <script defer src="src/entities/TankEnemy.js"></script>
+    <script defer src="src/entities/NecromancerEnemy.js"></script>
+    <script defer src="src/entities/EliteEnemy.js"></script>
+    <script defer src="src/entities/FireElementalEnemy.js"></script>
+    <script defer src="src/entities/LavaGolemEnemy.js"></script>
+    <script defer src="src/entities/MiniBoss.js"></script>
+    <script defer src="src/entities/BeamProjectile.js"></script>
+    <script defer src="src/entities/BoomerangProjectile.js"></script>
+    <script defer src="src/entities/LightningChainProjectile.js"></script>
 
     <!-- Systems (Clawd) -->
-    <script src="src/systems/InputManager.js"></script>
-    <script src="src/systems/WeaponSystem.js"></script>
-    <script src="src/systems/UpgradeSystem.js"></script>
-    <script src="src/systems/HUD.js"></script>
-    <script src="src/systems/MetaProgression.js"></script>
-    <script src="src/systems/ScreenEdgeIndicators.js"></script>
+    <script defer src="src/systems/InputManager.js"></script>
+    <script defer src="src/systems/WeaponSystem.js"></script>
+    <script defer src="src/systems/UpgradeSystem.js"></script>
+    <script defer src="src/systems/HUD.js"></script>
+    <script defer src="src/systems/MetaProgression.js"></script>
+    <script defer src="src/systems/ScreenEdgeIndicators.js"></script>
 
     <!-- Performance Systems (Clawd 2) -->
-    <script src="src/systems/ObjectPool.js"></script>
-    <script src="src/systems/SpatialGrid.js"></script>
-    <script src="src/systems/Minimap.js"></script>
-    <script src="src/systems/AudioManager.js"></script>
-    <script src="src/systems/ParticleSystem.js"></script>
-    <script src="src/systems/AbilitySystem.js"></script>
-    <script src="src/systems/SynergySystem.js"></script>
-    <script src="src/systems/CritSystem.js"></script>
-    <script src="src/systems/VignetteSystem.js"></script>
-    <script src="src/systems/ScreenShake.js"></script>
-    <script src="src/systems/DamageNumbers.js"></script>
-    <script src="src/systems/HazardSystem.js"></script>
-    <script src="src/systems/PerformanceOverlay.js"></script>
-    <script src="src/systems/EvolutionSystem.js"></script>
-    <script src="src/systems/ScreenTransition.js"></script>
-    <script src="src/systems/FormationSystem.js"></script>
-    <script src="src/systems/ComboSystem.js"></script>
-    <script src="src/systems/PetSystem.js"></script>
-    <script src="src/ui/AchievementToast.js"></script>
-    <script src="src/systems/AchievementSystem.js"></script>
-    <script src="src/systems/MagnetSystem.js"></script>
-    <script src="src/systems/AutoPlaySystem.js"></script>
+    <script defer src="src/systems/ObjectPool.js"></script>
+    <script defer src="src/systems/SpatialGrid.js"></script>
+    <script defer src="src/systems/Minimap.js"></script>
+    <script defer src="src/systems/AudioManager.js"></script>
+    <script defer src="src/systems/ParticleSystem.js"></script>
+    <script defer src="src/systems/AbilitySystem.js"></script>
+    <script defer src="src/systems/SynergySystem.js"></script>
+    <script defer src="src/systems/CritSystem.js"></script>
+    <script defer src="src/systems/VignetteSystem.js"></script>
+    <script defer src="src/systems/ScreenShake.js"></script>
+    <script defer src="src/systems/DamageNumbers.js"></script>
+    <script defer src="src/systems/HazardSystem.js"></script>
+    <script defer src="src/systems/PerformanceOverlay.js"></script>
+    <script defer src="src/systems/EvolutionSystem.js"></script>
+    <script defer src="src/systems/ScreenTransition.js"></script>
+    <script defer src="src/systems/FormationSystem.js"></script>
+    <script defer src="src/systems/ComboSystem.js"></script>
+    <script defer src="src/systems/PetSystem.js"></script>
+    <script defer src="src/ui/AchievementToast.js"></script>
+    <script defer src="src/systems/AchievementSystem.js"></script>
+    <script defer src="src/systems/MagnetSystem.js"></script>
+    <script defer src="src/systems/AutoPlaySystem.js"></script>
 
     <!-- Scenes (Clawd) -->
-    <script src="src/managers/BiomeManager.js"></script>
-    <script src="src/managers/WeaponManager.js"></script>
-    <script src="src/managers/SpawnManager.js"></script>
-    <script src="src/managers/CollisionManager.js"></script>
-    <script src="src/systems/BestiarySystem.js"></script>
-    <script src="src/scenes/BootScene.js"></script>
-    <script src="src/scenes/MenuScene.js"></script>
-    <script src="src/scenes/CharacterSelectScene.js"></script>
-    <script src="src/scenes/GameScene.js"></script>
-    <script src="src/scenes/GameOverScene.js"></script>
+    <script defer src="src/managers/BiomeManager.js"></script>
+    <script defer src="src/managers/WeaponManager.js"></script>
+    <script defer src="src/managers/SpawnManager.js"></script>
+    <script defer src="src/managers/CollisionManager.js"></script>
+    <script defer src="src/systems/BestiarySystem.js"></script>
+    <script defer src="src/scenes/BootScene.js"></script>
+    <script defer src="src/scenes/MenuScene.js"></script>
+    <script defer src="src/scenes/CharacterSelectScene.js"></script>
+    <script defer src="src/scenes/GameScene.js"></script>
+    <script defer src="src/scenes/GameOverScene.js"></script>
 
     <!-- Main (Clawd) -->
-    <script src="src/main.js"></script>
+    <script defer src="src/main.js"></script>
     <!-- GAME_CONFIG is set in src/data/gameConfig.js (reads URL params) and exposed via window.GAME_CONFIG there -->
 </body>
 </html>
