@@ -28,6 +28,15 @@ class CollisionManager {
         scene._itemsCollected++;
       }
     });
+
+    scene.physics.add.overlap(scene.player, scene.speedBuffGroup, (player, buff) => {
+      if (buff.active) {
+        buff.collect(player);
+        const idx = scene.speedBuffs.indexOf(buff);
+        if (idx !== -1) scene.speedBuffs.splice(idx, 1);
+        scene.speedBuffGroup.remove(buff, true, true);
+      }
+    });
   }
 
   setupEventListeners() {

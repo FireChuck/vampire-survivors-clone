@@ -40,6 +40,7 @@ class SpawnManager {
     this._updateWaveSystem(delta);
     this._updateChestSpawning();
     this._updateDLCEnemySpawning(delta);
+    this._updateSpeedBuffSpawning(delta);
   }
 
   // ── Wave System ──
@@ -650,4 +651,31 @@ class SpawnManager {
   }
 
   get chests() { return this._chests; }
+
+  // ── Speed Buff (Swift Boots) Spawning ──
+
+  _updateSpeedBuffSpawning(delta) {
+    if (!this.scene.player || !this.scene.player.active) return;
+    // Delegate to GameScene timer (cleaner lifecycle)
+    this.scene._speedBuffTimer = (this.scene._speedBuffTimer || 0) + delta;
+    if (this.scene._speedBuffTimer >= this.scene._speedBuffInterval) {
+      this.scene._speedBuffTimer = 0;
+      this._spawnSpeedBuff();
+    }
+  }
+
+  _spawnSpeedBuff() {
+    const scene = this.scene;
+    if (!scene.player || !scene.player.active) return;
+
+    // Spawn near player but offset (within 200-400px)
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 200 + Math.random() * 200;
+    const x = scene.player.x + Math.cos(angle) * dist;
+    const y = scene.player.y + Math.sin(angle) * dist;
+
+    const buff = new SpeedBuffPickup(scene, x, y);
+    scene.speedBuffGroup.add(buff);
+    scene.speedBuffs.push(buff);
+  }
 }

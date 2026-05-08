@@ -15,7 +15,7 @@ const GameConfig = {
         }
     },
     scale: {
-        mode: Phaser.Scale.FIT,
+        mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
     scene: [BootScene, MenuScene, CharacterSelectScene, GameScene, GameOverScene]

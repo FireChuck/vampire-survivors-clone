@@ -16,6 +16,12 @@ class GameScene extends Phaser.Scene {
     this.projectileGroup = this.physics.add.group({ runChildUpdate: false });
     this.xpOrbGroup = this.physics.add.group({ runChildUpdate: false });
     this.chestGroup = this.physics.add.group({ runChildUpdate: false });
+    this.speedBuffGroup = this.physics.add.group({ runChildUpdate: false });
+    this.speedBuffs = [];
+
+    // Speed buff spawning timer (every 30s)
+    this._speedBuffTimer = 0;
+    this._speedBuffInterval = 30000;
 
     // Input
     this.inputManager = new InputManager(this);
