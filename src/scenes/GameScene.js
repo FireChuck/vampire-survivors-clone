@@ -84,8 +84,8 @@ class GameScene extends Phaser.Scene {
     // Apply character crit chance
     this.critSystem.applyStats({ critChance: this.player.critChance });
 
-    // Performance Systems
-    this.spatialGrid = new SpatialGrid(128, GAME_CONFIG.worldWidth, GAME_CONFIG.worldHeight);
+    // Performance Systems — larger cell size on mobile for less overhead
+    this.spatialGrid = new SpatialGrid(window.IS_MOBILE ? 256 : 128, GAME_CONFIG.worldWidth, GAME_CONFIG.worldHeight);
 
     // Object pools
     this.projectilePool = new ObjectPool(
@@ -123,8 +123,8 @@ class GameScene extends Phaser.Scene {
       30
     );
 
-    // Minimap
-    this.minimap = new Minimap(this);
+    // Minimap — skip on mobile to save GPU cycles
+    this.minimap = window.IS_MOBILE ? null : new Minimap(this);
 
     // Stress test mode
     this._stressTest = this._incomingData?.stressTest || false;
@@ -1028,7 +1028,8 @@ class GameScene extends Phaser.Scene {
       fontStyle: 'bold', stroke: '#000000', strokeThickness: 6
     }).setOrigin(0.5).setScrollFactor(0).setDepth(300);
 
-    const steps = ['3', '2', '1', 'GO!'];
+    // Mobile: skip countdown — just "GO!" to reduce initial tween + spawn pressure
+    const steps = window.IS_MOBILE ? ['GO!'] : ['3', '2', '1', 'GO!'];
     let idx = 0;
 
     const showNext = () => {

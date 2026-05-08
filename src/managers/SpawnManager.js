@@ -9,14 +9,15 @@ class SpawnManager {
     this.formationSystem = new FormationSystem(scene);
 
     // ── Wave System (replaces continuous spawning) ──
+    var IS_MOB = window.IS_MOBILE;
     this.waveSystem = {
       currentWave: 0,
       state: 'idle',           // idle | spawning | clearing | pause
       spawnQueue: 0,           // enemies left to spawn this wave
       spawnTimer: 0,
-      spawnInterval: 400,      // ms between individual spawns within a wave
+      spawnInterval: IS_MOB ? 600 : 400,      // ms between individual spawns within a wave
       pauseTimer: 0,
-      pauseDuration: 3000,     // 3s pause between waves
+      pauseDuration: IS_MOB ? 5000 : 3000,     // pause between waves (longer on mobile)
       bossActive: false,
       bossWarningShown: false,
       bossWarningTimer: 0,
@@ -454,8 +455,11 @@ class SpawnManager {
     var scene = this.scene;
     var text = scene._waveText;
 
-    // QoL T4: Wave Announcer with Countdown (3... 2... 1... GO!)
-    var countSteps = ['3', '2', '1', isBossWave ? '⚔ FIGHT! ⚔' : 'GO!'];
+    // Mobile: skip countdown (3,2,1) — just show "GO!" to reduce tween pressure
+    // Desktop: full countdown for dramatic effect
+    var countSteps = window.IS_MOBILE
+      ? [isBossWave ? '⚔ FIGHT! ⚔' : 'GO!']
+      : ['3', '2', '1', isBossWave ? '⚔ FIGHT! ⚔' : 'GO!'];
     var idx = 0;
 
     var showNext = () => {
