@@ -7,8 +7,10 @@
 const _urlParams = new URLSearchParams(window.location.search);
 
 // ── Mobile Detection ──
-// Note: maxTouchPoints check uses >= 1 (not > 1) — some Android devices report 1
-const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+// Note: maxTouchPoints >= 1 catches most Android devices (some report exactly 1)
+// URL param ?mobile=1 overrides detection for debugging
+const IS_MOBILE = _urlParams.has('mobile')
+  || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
   || ('ontouchstart' in window && navigator.maxTouchPoints >= 1);
 
 window.IS_MOBILE = IS_MOBILE;

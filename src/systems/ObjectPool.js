@@ -9,7 +9,10 @@ class ObjectPool {
     this._activeCount = 0;
     this._totalCreated = 0;
 
-    // Pre-allocate
+    // Pre-allocate — skip on mobile to avoid physics body creation at scene start
+    // which causes main-thread freeze on Android Chrome
+    if (window.IS_MOBILE) return;
+
     const size = initialSize || 10;
     for (let i = 0; i < size; i++) {
       const obj = this._createFn();

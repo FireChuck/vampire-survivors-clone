@@ -132,7 +132,7 @@ class GameScene extends Phaser.Scene {
     // FPS counter — prominent when stress test
     const fpsFontSize = this._stressTest ? '20px' : '12px';
     const fpsColor = this._stressTest ? '#00ff00' : '#ffff00';
-    this._fpsText = this.add.text(8, 8, '', {
+    this._fpsText = this.add.text(8, 8, 'MOBILE:' + window.IS_MOBILE, {
       fontSize: fpsFontSize, fill: fpsColor, fontFamily: 'monospace',
       backgroundColor: '#000000', padding: { x: 6, y: 3 }
     });
