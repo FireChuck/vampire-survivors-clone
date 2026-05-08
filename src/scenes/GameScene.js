@@ -174,6 +174,10 @@ class GameScene extends Phaser.Scene {
 
     // Pet System (orbiting companions)
     this.petSystem = new PetSystem(this);
+    this.magnetSystem = new MagnetSystem(this);
+
+    // AutoPlay System (bot control via ?autoplay=true)
+    this.autoPlay = new AutoPlaySystem(this);
 
     this.collisionManager = new CollisionManager(this);
     this.collisionManager.setupCollisions();
@@ -319,19 +323,6 @@ class GameScene extends Phaser.Scene {
     // QoL T4: Combo Counter Reset Timer (visual bar under streak text)
     this._comboTimerGfx = this.add.graphics().setScrollFactor(0).setDepth(54);
 
-    // ── QoL: Kill Combo System (kills/sec based) ──
-    this._killCombo = {
-      kills: [],           // timestamps of recent kills
-      comboLevel: 0,       // 0 = none, 2-10
-      lastComboLevel: 0,
-      windowMs: 1000,      // 1 second window for kills/sec
-      thresholds: [0, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50] // kills/sec → combo level
-    };
-    this._comboText = this.add.text(0, 0, '', {
-      fontSize: '28px', fontFamily: 'Arial, sans-serif', color: '#ffd700',
-      fontStyle: 'bold', stroke: '#000000', strokeThickness: 4
-    }).setScrollFactor(0).setDepth(56).setAlpha(0);
-
     // ── QoL: Damage Edge Flash (red vignette on damage) ──
     this._damageFlashAlpha = 0;
     this._damageFlashGfx = this.add.graphics().setScrollFactor(0).setDepth(49);
@@ -396,6 +387,7 @@ class GameScene extends Phaser.Scene {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(300).setAlpha(0).setVisible(false);
 
     this._onVisibilityChange = () => {
+      if (window.GAME_CONFIG?.autoPlay) return;
       if (document.hidden && !this.isPaused && !this.gameOverTriggered && !this._startCountdownActive) {
         this._togglePause();
         this._tabPauseOverlay.setVisible(true);
@@ -411,6 +403,9 @@ class GameScene extends Phaser.Scene {
   // ── Main Update Loop ──
 
   update(time, delta) {
+    // AutoPlay bot — runs before pause checks so it can handle upgrades
+    if (this.autoPlay) this.autoPlay.update(time, delta);
+
     if (this.isPaused || this._startCountdownActive || this.upgradeSystem.paused || this.gameOverTriggered || this._slowMoActive) return;
 
     // Particle system
@@ -509,6 +504,9 @@ class GameScene extends Phaser.Scene {
       }
     }
 
+    // MagnetSystem: pull XP gems toward player
+    if (this.magnetSystem) this.magnetSystem.update();
+
     // Update XP orbs
     for (let i = this.xpOrbs.length - 1; i >= 0; i--) {
       const orb = this.xpOrbs[i];
@@ -534,6 +532,15 @@ class GameScene extends Phaser.Scene {
 
     // Special Events System
     this._updateSpecialEvents(time, delta);
+  }
+
+  /** Called by Enemy.js on death — grants XP and triggers level-up */
+  recordKill(enemy) {
+    const xp = (enemy && enemy.xpValue) || 1;
+    this.upgradeSystem.addXP(xp);
+  }
+
+  // ── Kill Streak QoL ──
 
     // Batch render all enemies into single Graphics object
     this._renderEnemyBatch(delta);
@@ -593,7 +600,6 @@ class GameScene extends Phaser.Scene {
     this._updateSpawnWarnings(delta);
     this._updatePerformanceAutoAdjust(time);
     this._updateDamageFlash(delta);
-    this._updateKillCombo();
     this._updateAutoAimLine();
     this._processStatToastQueue();
 
@@ -1507,66 +1513,6 @@ class GameScene extends Phaser.Scene {
       const alpha = this._damageFlashAlpha * (1 - t) * (1 - t);
       g.fillStyle(0xff0000, alpha);
       g.fillRect(inset, inset, sw - inset * 2, sh - inset * 2);
-    }
-  }
-
-  // ── QoL: Kill Combo System (kills/sec based, x2-x10) ──
-
-  recordKill() {
-    this._killCombo.kills.push(Date.now());
-  }
-
-  _updateKillCombo() {
-    const now = Date.now();
-    const windowMs = this._killCombo.windowMs;
-
-    // Prune old kills outside window
-    this._killCombo.kills = this._killCombo.kills.filter(t => now - t < windowMs);
-
-    const killsPerSec = this._killCombo.kills.length;
-    const thresholds = this._killCombo.thresholds;
-
-    // Determine combo level
-    let level = 0;
-    for (let i = thresholds.length - 1; i >= 0; i--) {
-      if (killsPerSec >= thresholds[i]) {
-        level = i;
-        break;
-      }
-    }
-
-    if (level !== this._killCombo.comboLevel) {
-      this._killCombo.comboLevel = level;
-      if (level >= 2) {
-        const comboColors = ['', '', '#88ff88', '#44ff44', '#ffd700', '#ffaa00', '#ff8800', '#ff4444', '#ff22ff', '#ff00ff', '#ff0066'];
-        const color = comboColors[level] || '#ff0066';
-        this._comboText.setText(`COMBO x${level}`);
-        this._comboText.setStyle({ color });
-        this._comboText.setAlpha(1);
-        this._comboText.setScale(1.1);
-
-        this.tweens.killTweensOf(this._comboText);
-        this.tweens.add({
-          targets: this._comboText,
-          scaleX: 1, scaleY: 1,
-          duration: 300,
-          ease: 'Back.easeOut'
-        });
-      } else {
-        this._comboText.setAlpha(0);
-      }
-      this._killCombo.lastComboLevel = level;
-    }
-
-    // Position combo text near player on screen
-    if (this._comboText.alpha > 0 && this.player) {
-      const cam = this.cameras.main;
-      const screenX = this.player.x - cam.scrollX + cam.width / 2;
-      const screenY = this.player.y - cam.scrollY - 30;
-      this._comboText.setPosition(
-        Math.max(60, Math.min(this.scale.width - 60, screenX)),
-        Math.max(60, Math.min(this.scale.height - 60, screenY))
-      );
     }
   }
 

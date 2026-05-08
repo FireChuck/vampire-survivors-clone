@@ -423,7 +423,7 @@ class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.scene.killCount++;
     }
     // QoL: Kill Combo (kills/sec based)
-    if (this.scene.recordKill) this.scene.recordKill();
+    if (this.scene.recordKill) this.scene.recordKill(this);
 
     // Immediate destroy — batch renderer handles visuals
     this.destroy();

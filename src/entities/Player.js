@@ -106,9 +106,9 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       if (this.active) this.clearTint();
     });
 
-    // Screen shake
-    if (this.scene.cameras && this.scene.cameras.main) {
-      this.scene.cameras.main.shake(200, 0.01);
+    // Screen shake (routed through ScreenShake system for damage-scaled intensity)
+    if (this.scene.screenShake) {
+      this.scene.screenShake.shakeDamage(reduced);
     }
 
     // QoL: Damage edge flash

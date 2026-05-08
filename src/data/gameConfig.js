@@ -3,7 +3,11 @@
  * Vampire Survivors Clone — Global Script (no ES6 modules)
  */
 
+// Parse URL params for autoplay mode
+const _urlParams = new URLSearchParams(window.location.search);
+
 const GAME_CONFIG = {
+  autoPlay: _urlParams.has('autoplay'),
   // ── Spawn System ──
   spawnIntervalStart: 2000,    // ms between spawn waves at game start
   spawnIntervalMin: 300,       // minimum spawn interval (cap)
@@ -66,3 +70,5 @@ const GAME_CONFIG = {
     minInterval: 300,          // minimum spawn interval
   },
 };
+
+window.GAME_CONFIG = GAME_CONFIG;
