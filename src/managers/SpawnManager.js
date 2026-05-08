@@ -9,15 +9,14 @@ class SpawnManager {
     this.formationSystem = new FormationSystem(scene);
 
     // ── Wave System (replaces continuous spawning) ──
-    var IS_MOB = window.IS_MOBILE;
     this.waveSystem = {
       currentWave: 0,
-      state: 'idle',           // idle | announcing | spawning | clearing | pause
+      state: 'idle',           // idle | spawning | clearing | pause
       spawnQueue: 0,           // enemies left to spawn this wave
       spawnTimer: 0,
-      spawnInterval: IS_MOB ? 800 : 500,      // ms between individual spawns within a wave
+      spawnInterval: 400,      // ms between individual spawns within a wave
       pauseTimer: 0,
-      pauseDuration: IS_MOB ? 5000 : 4000,     // pause between waves (longer on mobile)
+      pauseDuration: 3000,     // 3s pause between waves
       bossActive: false,
       bossWarningShown: false,
       bossWarningTimer: 0,
@@ -52,9 +51,6 @@ class SpawnManager {
     switch (ws.state) {
       case 'idle':
         this._waveIdle(delta);
-        break;
-      case 'announcing':
-        // Wait for countdown to finish — _showWaveAnnouncement sets state to 'spawning'
         break;
       case 'warning':
         this._waveBossWarning(delta);
@@ -145,7 +141,7 @@ class SpawnManager {
   _startWave() {
     var ws = this.waveSystem;
     ws.currentWave++;
-    ws.state = 'announcing';  // Don't spawn yet — wait for countdown to finish
+    ws.state = 'spawning';
     ws.spawnTimer = 0;
     ws.waveKillCount = 0;
 
@@ -155,8 +151,8 @@ class SpawnManager {
     var wave = ws.currentWave;
     var targetCount;
     if (wave <= 3) {
-      // Early waves: gentle ramp (1, 3, 5)
-      targetCount = wave === 1 ? 1 : wave * 2 - 1;
+      // Early waves: gentle ramp (3, 5, 8)
+      targetCount = wave * 2 + 1;
     } else if (wave <= 10) {
       // Mid game: steady growth (10 → 25)
       targetCount = 7 + (wave - 3) * 3;
@@ -168,10 +164,6 @@ class SpawnManager {
       targetCount = Math.max(2, Math.floor(targetCount * 0.35)); // fewer normals on boss wave
     }
     ws.spawnQueue = Math.min(targetCount, GAME_CONFIG.maxEnemies - this.scene.enemies.length);
-    // Mobile: cap wave size to prevent overload
-    if (window.IS_MOBILE) {
-      ws.spawnQueue = Math.min(ws.spawnQueue, 10);
-    }
     ws.waveKillTarget = ws.spawnQueue + (isBossWave ? 1 : 0);
 
     // Show wave announcement
@@ -457,7 +449,6 @@ class SpawnManager {
   _showWaveAnnouncement(waveNum, isBossWave) {
     var scene = this.scene;
     var text = scene._waveText;
-    var self = this;
 
     // QoL T4: Wave Announcer with Countdown (3... 2... 1... GO!)
     var countSteps = ['3', '2', '1', isBossWave ? '⚔ FIGHT! ⚔' : 'GO!'];
@@ -487,10 +478,6 @@ class SpawnManager {
           delay: 500,
           ease: 'Power2'
         });
-
-        // CRITICAL: NOW start spawning enemies — countdown is done
-        // This prevents physics object creation during tween animations
-        self.waveSystem.state = 'spawning';
         return;
       }
 
