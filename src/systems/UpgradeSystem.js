@@ -19,6 +19,8 @@ class UpgradeSystem {
   addXP(amount) {
     if (this.paused) return;
 
+    this.player.xp += Math.floor(amount * this.player.stats.xpMultiplier);
+
     while (this.player.xp >= this.xpToNext) {
       this.player.xp -= this.xpToNext;
       this.player.level++;
