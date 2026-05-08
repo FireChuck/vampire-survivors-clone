@@ -15,9 +15,9 @@ class SpawnManager {
       state: 'idle',           // idle | announcing | spawning | clearing | pause
       spawnQueue: 0,           // enemies left to spawn this wave
       spawnTimer: 0,
-      spawnInterval: IS_MOB ? 600 : 400,      // ms between individual spawns within a wave
+      spawnInterval: IS_MOB ? 800 : 500,      // ms between individual spawns within a wave
       pauseTimer: 0,
-      pauseDuration: IS_MOB ? 5000 : 3000,     // pause between waves (longer on mobile)
+      pauseDuration: IS_MOB ? 5000 : 4000,     // pause between waves (longer on mobile)
       bossActive: false,
       bossWarningShown: false,
       bossWarningTimer: 0,
@@ -155,8 +155,8 @@ class SpawnManager {
     var wave = ws.currentWave;
     var targetCount;
     if (wave <= 3) {
-      // Early waves: gentle ramp (3, 5, 8)
-      targetCount = wave * 2 + 1;
+      // Early waves: gentle ramp (1, 3, 5)
+      targetCount = wave === 1 ? 1 : wave * 2 - 1;
     } else if (wave <= 10) {
       // Mid game: steady growth (10 → 25)
       targetCount = 7 + (wave - 3) * 3;
