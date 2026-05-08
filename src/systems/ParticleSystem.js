@@ -16,6 +16,10 @@ class ParticleSystem {
     // QoL T4: Particle Quality Setting (Low/Med/High)
     this._qualityLevel = 'high'; // default
     this._loadQualitySetting();
+    // Auto-set low quality on mobile devices
+    if (window.IS_MOBILE) {
+      this._qualityLevel = 'low';
+    }
     this._applyQualityLevel();
   }
 

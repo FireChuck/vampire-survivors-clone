@@ -164,6 +164,10 @@ class SpawnManager {
       targetCount = Math.max(2, Math.floor(targetCount * 0.35)); // fewer normals on boss wave
     }
     ws.spawnQueue = Math.min(targetCount, GAME_CONFIG.maxEnemies - this.scene.enemies.length);
+    // Mobile: cap wave size to prevent overload
+    if (window.IS_MOBILE) {
+      ws.spawnQueue = Math.min(ws.spawnQueue, 10);
+    }
     ws.waveKillTarget = ws.spawnQueue + (isBossWave ? 1 : 0);
 
     // Show wave announcement

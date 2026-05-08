@@ -6,13 +6,19 @@
 // Parse URL params for autoplay mode
 const _urlParams = new URLSearchParams(window.location.search);
 
+// ── Mobile Detection ──
+const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  || ('ontouchstart' in window && navigator.maxTouchPoints > 1);
+
+window.IS_MOBILE = IS_MOBILE;
+
 const GAME_CONFIG = {
   autoPlay: _urlParams.has('autoplay'),
   // ── Spawn System ──
-  spawnIntervalStart: 2000,    // ms between spawn waves at game start
-  spawnIntervalMin: 300,       // minimum spawn interval (cap)
+  spawnIntervalStart: IS_MOBILE ? 4000 : 2000,    // ms between spawn waves at game start
+  spawnIntervalMin: IS_MOBILE ? 800 : 300,         // minimum spawn interval (cap)
   spawnIntervalDecrease: 50,   // ms decrease per minute of gameplay
-  maxEnemies: 150,             // max concurrent enemies on screen
+  maxEnemies: IS_MOBILE ? 30 : 150,                // max concurrent enemies on screen
   spawnRadius: 600,            // spawn distance from player (off-screen edge)
 
   // ── XP & Leveling ──
@@ -48,7 +54,7 @@ const GAME_CONFIG = {
   chestSpawnInterval: 60,      // seconds between item chest spawns
 
   // ── Performance ──
-  maxParticles: 200,
+  maxParticles: IS_MOBILE ? 60 : 200,
   enemyDespawnDistance: 1200,  // remove enemies this far off-screen
   targetFPS: 60,
 
