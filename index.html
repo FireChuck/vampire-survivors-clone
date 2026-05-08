@@ -89,7 +89,6 @@
 
     <!-- Main (Clawd) -->
     <script src="src/main.js"></script>
-    <script>window.GAME_CONFIG = { autoPlay: false };</script>
-    <script>(function(){const p=new URLSearchParams(location.search);if(p.get('autoplay')==='true'){GAME_CONFIG.autoPlay=true;}})();</script>
+    <!-- GAME_CONFIG is set in src/data/gameConfig.js (reads URL params) and exposed via window.GAME_CONFIG there -->
 </body>
 </html>

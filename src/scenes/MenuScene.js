@@ -135,6 +135,13 @@ class MenuScene extends Phaser.Scene {
             this.scene.start('GameScene', { stressTest: true });
         });
 
+        // Autoplay: skip menu and go straight to character select
+        if (window.GAME_CONFIG?.autoPlay) {
+            this.time.delayedCall(500, () => {
+                this.scene.start('CharacterSelectScene');
+            });
+        }
+
         // Reset button (small, bottom)
         if (stats.totalRuns > 0) {
             const resetBtn = this.add.text(cx, cy + 170, '🗑 Reset Progress', {

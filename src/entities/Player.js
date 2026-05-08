@@ -150,16 +150,12 @@ class Player extends Phaser.Physics.Arcade.Sprite {
       onComplete: () => flash.destroy()
     });
 
-    // 2. Slow-mo effect (time scale 0.3, 1 sec)
-    if (this.scene.time && this.scene.physics) {
+    // 2. Slow-mo effect (physics only — timers stay real-time for game-over transition)
+    if (this.scene.physics) {
       this.scene.physics.world.timeScale = 0.3;
-      this.scene.time.timeScale = 0.3;
       this.scene.time.delayedCall(1000, () => {
         if (this.scene.physics && this.scene.physics.world) {
           this.scene.physics.world.timeScale = 1;
-        }
-        if (this.scene.time) {
-          this.scene.time.timeScale = 1;
         }
       });
     }

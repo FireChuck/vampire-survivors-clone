@@ -185,6 +185,13 @@ class CharacterSelectScene extends Phaser.Scene {
     const firstUnlocked = CHARACTERS.findIndex(c => unlockedChars.includes(c.id));
     this._selectCharacter(firstUnlocked >= 0 ? firstUnlocked : 0);
 
+    // Autoplay: auto-start with first unlocked character
+    if (window.GAME_CONFIG?.autoPlay) {
+        this.time.delayedCall(500, () => {
+            this._startGame();
+        });
+    }
+
     // Start button
     this._startBtn = this.add.rectangle(cx, cy + 170, 200, 50, 0x4ecdc4)
       .setInteractive({ useHandCursor: true }).setDepth(10);

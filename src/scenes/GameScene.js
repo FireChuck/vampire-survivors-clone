@@ -532,15 +532,8 @@ class GameScene extends Phaser.Scene {
 
     // Special Events System
     this._updateSpecialEvents(time, delta);
-  }
 
-  /** Called by Enemy.js on death — grants XP and triggers level-up */
-  recordKill(enemy) {
-    const xp = (enemy && enemy.xpValue) || 1;
-    this.upgradeSystem.addXP(xp);
-  }
-
-  // ── Kill Streak QoL ──
+    // ── Kill Streak QoL ──
 
     // Batch render all enemies into single Graphics object
     this._renderEnemyBatch(delta);
@@ -612,6 +605,12 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Called by Enemy.js on death — grants XP and triggers level-up */
+  recordKill(enemy) {
+    const xp = (enemy && enemy.xpValue) || 1;
+    this.upgradeSystem.addXP(xp);
+  }
+
   // ── T4.1: DPS Tracking ──
 
   recordDamage(amount) {
@@ -633,9 +632,8 @@ class GameScene extends Phaser.Scene {
   // ── T4.1: Slow-Mo Death Effect ──
 
   _doSlowMoDeath(callback) {
-    // Slow down game to 20% speed for 1.5 seconds, then trigger game over
+    // Slow down game to 20% speed for visual effect, but keep timers at real speed
     this._slowMoActive = true;
-    this.time.timeScale = 0.2;
     this.physics.world.timeScale = 0.2;
 
     // Red vignette
@@ -650,19 +648,33 @@ class GameScene extends Phaser.Scene {
       duration: 300
     });
 
-    this.time.delayedCall(1500, () => {
-      // Restore speed
-      this.time.timeScale = 1;
-      this.physics.world.timeScale = 1;
-      this._slowMoActive = false;
+    // Use raw setTimeout instead of this.time.delayedCall because
+    // gameOverTriggered=true causes update() to return early, which
+    // can prevent Phaser's clock from advancing and firing delayed calls.
+    const self = this;
+    setTimeout(() => {
+      try {
+        self.physics.world.timeScale = 1;
+        self._slowMoActive = false;
 
-      // Fade out to black
-      this.cameras.main.fadeOut(600, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        vignette.destroy();
+        let callbackFired = false;
+        const doCallback = () => {
+          if (callbackFired) return;
+          callbackFired = true;
+          try { vignette.destroy(); } catch(e) {}
+          if (callback) callback();
+        };
+
+        self.cameras.main.fadeOut(600, 0, 0, 0);
+        self.cameras.main.once('camerafadeoutcomplete', doCallback);
+        setTimeout(doCallback, 1200);
+      } catch(e) {
+        console.warn('_doSlowMoDeath callback error:', e);
+        // Last resort: just do the callback
+        try { vignette.destroy(); } catch(e2) {}
         if (callback) callback();
-      });
-    });
+      }
+    }, 1500);
   }
 
   // ── QoL: Auto-Pickup Radius (scales with level + pickup upgrades) ──

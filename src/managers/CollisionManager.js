@@ -196,14 +196,30 @@ class CollisionManager {
 
     // T4.1: Slow-mo death effect before game over
     scene._doSlowMoDeath(() => {
-      scene.inputManager.destroy();
-      scene.upgradeSystem.destroy();
-      if (scene.abilitySystem) scene.abilitySystem.destroy();
-      if (scene.synergySystem) scene.synergySystem.destroy();
-      if (scene.vignetteSystem) scene.vignetteSystem.destroy();
-      if (scene.hazardSystem) scene.hazardSystem.destroy();
-      scene.hud.destroy();
-      if (scene.damageNumbers) scene.damageNumbers.destroy();
+      try {
+        if (scene.inputManager) scene.inputManager.destroy();
+      } catch(e) { console.warn('inputManager.destroy failed:', e); }
+      try {
+        if (scene.upgradeSystem) scene.upgradeSystem.destroy();
+      } catch(e) { console.warn('upgradeSystem.destroy failed:', e); }
+      try {
+        if (scene.abilitySystem) scene.abilitySystem.destroy();
+      } catch(e) { console.warn('abilitySystem.destroy failed:', e); }
+      try {
+        if (scene.synergySystem) scene.synergySystem.destroy();
+      } catch(e) { console.warn('synergySystem.destroy failed:', e); }
+      try {
+        if (scene.vignetteSystem) scene.vignetteSystem.destroy();
+      } catch(e) { console.warn('vignetteSystem.destroy failed:', e); }
+      try {
+        if (scene.hazardSystem) scene.hazardSystem.destroy();
+      } catch(e) { console.warn('hazardSystem.destroy failed:', e); }
+      try {
+        if (scene.hud) scene.hud.destroy();
+      } catch(e) { console.warn('hud.destroy failed:', e); }
+      try {
+        if (scene.damageNumbers) scene.damageNumbers.destroy();
+      } catch(e) { console.warn('damageNumbers.destroy failed:', e); }
 
       const stats = {
         score: scene.score,
