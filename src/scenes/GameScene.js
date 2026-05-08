@@ -225,6 +225,10 @@ class GameScene extends Phaser.Scene {
 
     // Particle System
     this.particleSystem = new ParticleSystem(this);
+    // Force low particle quality on mobile (belt-and-suspenders with constructor)
+    if (window.IS_MOBILE) {
+      this.particleSystem.setQuality('low');
+    }
 
     // Vignette System (low HP warning)
     this.vignetteSystem = new VignetteSystem(this);
