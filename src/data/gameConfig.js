@@ -21,7 +21,7 @@ const GAME_CONFIG = {
   spawnIntervalStart: IS_MOBILE ? 4000 : 2000,    // ms between spawn waves at game start
   spawnIntervalMin: IS_MOBILE ? 800 : 300,         // minimum spawn interval (cap)
   spawnIntervalDecrease: 50,   // ms decrease per minute of gameplay
-  maxEnemies: IS_MOBILE ? 30 : 80,                // max concurrent enemies on screen
+  maxEnemies: IS_MOBILE ? 30 : 150,               // max concurrent enemies on screen
   spawnRadius: 600,            // spawn distance from player (off-screen edge)
 
   // ── XP & Leveling ──

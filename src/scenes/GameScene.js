@@ -85,7 +85,7 @@ class GameScene extends Phaser.Scene {
     this.critSystem.applyStats({ critChance: this.player.critChance });
 
     // Performance Systems — larger cell size on mobile for less overhead
-    this.spatialGrid = new SpatialGrid(window.IS_MOBILE ? 256 : 128, GAME_CONFIG.worldWidth, GAME_CONFIG.worldHeight);
+    this.spatialGrid = new SpatialGrid(128, GAME_CONFIG.worldWidth, GAME_CONFIG.worldHeight);
 
     // Object pools
     this.projectilePool = new ObjectPool(
@@ -132,7 +132,7 @@ class GameScene extends Phaser.Scene {
     // FPS counter — prominent when stress test
     const fpsFontSize = this._stressTest ? '20px' : '12px';
     const fpsColor = this._stressTest ? '#00ff00' : '#ffff00';
-    this._fpsText = this.add.text(8, 8, 'MOBILE:' + window.IS_MOBILE, {
+    this._fpsText = this.add.text(8, 8, '', {
       fontSize: fpsFontSize, fill: fpsColor, fontFamily: 'monospace',
       backgroundColor: '#000000', padding: { x: 6, y: 3 }
     });
