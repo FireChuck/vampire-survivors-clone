@@ -89,3 +89,11 @@ Bewegen → Gegner töten → XP sammeln → Level-Up → Upgrade wählen → Wi
 | `src/data/gameConfig.js` | Zentrale Konstanten (Spawn, XP, Player, Camera, World) |
 | `src/data/levelProgression.js` | Gegner-Typen über Zeit, Difficulty-Scaler, Enemy-Stats |
 | `src/data/biomeDesign.js` | 4 Biome-Zonen, Decoration-Typen, Biome-Enemy-Affinität |
+
+---
+
+## ChatGPT-Schreibtest
+
+Am 20. September 2026 wurde dieser Abschnitt auf ausdrücklichen Wunsch des Repository-Inhabers direkt aus dem Chat ergänzt, um das Bearbeiten einer bereits vorhandenen Datei über die GitHub-Anbindung zu testen. Das bestehende Spieldesign und der Spielcode bleiben unverändert.
+
+Die zusätzlich angelegte Testdatei befindet sich unter [CHATGPT_WRITE_TEST.md](../CHATGPT_WRITE_TEST.md).
